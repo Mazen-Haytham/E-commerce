@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -------------------- Users & Roles --------------------
+model User {
+  id        String       @id @default(uuid())
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  email     String       @unique
+  firstName String
+  lastName  String
+  password  String
+  phone     String
+  profile   UserProfile?
+  cart      Cart?
+  roles     Role[]       @relation("UserRoles") // implicit many-to-many
+  orders    Order[]
+}
+
+model UserProfile {
+  userId          String   @id
+  profilePic      String?
+  loyaltyPoints   Int?     @default(0)
+  membership      String?
+  recommendations Json?
+  user            User     @relation(fields: [userId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Role {
+  id        String   @id @default(uuid())
+  name      String
+  users     User[]   @relation("UserRoles") // implicit many-to-many
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// -------------------- Products & Variants --------------------
+model Product {
+  id         String           @id @default(uuid())
+  name       String
+  producer   String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  variants   ProductVariant[]
+  categories Category[]       @relation("ProductCategories") // implicit many-to-many
+  isActive   Boolean          @default(true) // simple visibility
+}
+
+model ProductVariant {
+  id             String         @id @default(uuid())
+  product        Product        @relation(fields: [productId], references: [id])
+  productId      String
+  color          String?
+  size           String?
+  weight         String
+  sku            String         @unique
+  price          Decimal
+  additionalInfo Json?
+  stock          ProductStock[]
+  orderItems     OrderItem[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  cartItems      CartItem[]
+}
+
+// -------------------- Categories --------------------
+model Category {
+  id       String    @id @default(uuid())
+  name     String
+  products Product[] @relation("ProductCategories") // implicit many-to-many
+}
+
+// -------------------- Inventory & Stock --------------------
+model Inventory {
+  id       String         @id @default(uuid())
+  name     String
+  location String
+  stock    ProductStock[]
+}
+
+model ProductStock {
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  inventory        Inventory      @relation(fields: [inventoryId], references: [id])
+  inventoryId      String
+  stockLevel       Int            @default(0)
+  restockAlert     Int            @default(0)
+
+  @@id([productVariantId, inventoryId])
+}
+
+// -------------------- Orders & Items --------------------
+model Order {
+  id         String      @id @default(uuid())
+  user       User        @relation(fields: [userId], references: [id])
+  userId     String
+  totalPrice Decimal
+  status     String // e.g., 'pending', 'paid', 'shipped', 'cancelled'
+  items      OrderItem[]
+  payments   Payment[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model OrderItem {
+  id               String         @id @default(uuid())
+  order            Order          @relation(fields: [orderId], references: [id])
+  orderId          String
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  quantity         Int
+  unitPrice        Decimal
+}
+
+// -------------------- Payments --------------------
+model PaymentMethod {
+  id       String    @id @default(uuid())
+  name     String
+  payments Payment[]
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  order           Order         @relation(fields: [orderId], references: [id])
+  orderId         String
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  paymentMethodId String
+  amount          Decimal
+  transactionId   String?
+  status          String // e.g., 'pending', 'succeeded', 'failed'
+  createdAt       DateTime      @default(now())
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  user      User?      @relation(fields: [userId], references: [id])
+  userId    String?    @unique
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id               String         @id @default(uuid())
+  cart             Cart           @relation(fields: [cartId], references: [id])
+  cartId           String
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  quantity         Int
+  addedAt          DateTime       @default(now())
+}
