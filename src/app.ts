@@ -3,7 +3,6 @@ import express from "express";
 import type { Request, Response } from "express";
 import morgan from "morgan";
 import helmet from "helmet";
-import { prisma } from "./shared/prisma.ts";
 
 dotenv.config();
 
