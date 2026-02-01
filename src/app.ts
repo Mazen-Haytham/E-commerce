@@ -1,9 +1,9 @@
 import dotenv from "dotenv";
 import express from "express";
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import morgan from "morgan";
 import helmet from "helmet";
-
+import { userRouter } from "../UserModule/src/index.js";
 dotenv.config();
 
 const app = express();
@@ -11,16 +11,10 @@ const app = express();
 app.use(helmet());
 app.use(morgan("dev"));
 app.use(express.json());
-
-app.get("/api/users", (req: Request, res: Response) => {
-  return res.status(200).json({
-    data: [
-      {
-        id: 1,
-        name: "Mazen",
-      },
-    ],
-  });
-});
+const logging=async(req:Request,res:Response,next:NextFunction)=>{
+    console.log(req.body);
+    next();
+}
+app.use("/api/users",logging, userRouter);
 
 export default app;
