@@ -9,5 +9,6 @@ const router = Router();
 
 router.post("/", controller.createUser);
 router.get("/", controller.getAllUsers);
+router.patch("/:id",controller.updateUser)
 
 export { router as userRouter };
