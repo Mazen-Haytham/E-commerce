@@ -2,58 +2,105 @@ import { create } from "node:domain";
 import { prisma } from "../../../src/shared/prisma.js";
 import {
   createUserDTO,
-  createUserResponse,
-  LoginResponse,
-  Profile,
   UpdateUserDTO,
   User,
-  UsersResponse,
-  UserUpdateInfo,
 } from "../types/userTypes.js";
 export class UserRepo {
   // ADMIN
-   getAllUsers=async()=> {
+  getAllUsers = async () => {
     const userData = await prisma.user.findMany({
-      include: {
-        roles: {
-          include: {
-            role: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        profile: true,
-      },
-    });
-    return userData;
-  }
-  //LOGIN
-   findUserByEmail=async(email: string)=> {
-    const userData = await prisma.user.findUnique({
-      where: { email: email },
-      include: {
-        roles: {
-          include: {
-            role: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
+      select: {
+        id: true,
+        email:true,
+        firstName: true,
+        lastName: true,
+        password: true,
+        phone: true,
         profile: {
           select: {
             profilePic: true,
+            loyaltyPoints: true,
+            membership: true,
+            recommendations: true,
+          },
+        },
+        roles: {
+          select: {
+            role: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },
     });
     return userData;
-  }
+  };
+  //LOGIN
+  findUserByEmail = async (email: string) => {
+    const userData = await prisma.user.findUnique({
+      where: { email: email },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        password: true,
+        phone: true,
+        profile: {
+          select: {
+            profilePic: true,
+            loyaltyPoints: true,
+            membership: true,
+            recommendations: true,
+          },
+        },
+        roles: {
+          select: {
+            role: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    return userData;
+  };
 
-   createUser=async(user: createUserDTO)=> {
+  findUserById = async (userId: string) => {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        password: true,
+        phone: true,
+        profile: {
+          select: {
+            profilePic: true,
+            loyaltyPoints: true,
+            membership: true,
+            recommendations: true,
+          },
+        },
+        roles: {
+          select: {
+            role: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    return user;
+  };
+
+  createUser = async (user: createUserDTO) => {
     const { email, firstName, lastName, phone, password } = user;
     const newUser = await prisma.user.create({
       data: {
@@ -71,14 +118,23 @@ export class UserRepo {
           ],
         },
       },
-      include: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        password: true,
+        phone: true,
+        email: true,
         profile: {
           select: {
             profilePic: true,
+            loyaltyPoints: true,
+            membership: true,
+            recommendations: true,
           },
         },
         roles: {
-          include: {
+          select: {
             role: {
               select: {
                 name: true,
@@ -89,12 +145,18 @@ export class UserRepo {
       },
     });
     return newUser;
-  }
-   updateUser=async(userId: string, user: UpdateUserDTO) =>{
-    const updateUser: UserUpdateInfo | null = await prisma.user.update({
+  };
+  updateUser = async (
+    userId: string,
+    user: UpdateUserDTO,
+  ): Promise<User | null> => {
+    const dto: UpdateUserDTO = {};
+    if (user.password) dto.password = user.password;
+    if (user.phone) dto.phone = user.phone;
+    const updateUser: User = await prisma.user.update({
       where: { id: userId },
-      data: user,
+      data: dto,
     });
     return updateUser;
-  }
+  };
 }
