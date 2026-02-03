@@ -93,7 +93,9 @@ export type GetAllUsersResponse = UserWithProfileAndRoles[];
 export interface UserParams{
   id:string
 }
-
+export interface UserEmailParams{
+  email:string
+}
 export type ErrorResponse={
   statusCode:number,
   status:string,

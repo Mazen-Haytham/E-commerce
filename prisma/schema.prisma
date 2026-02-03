@@ -16,7 +16,7 @@ model User {
   lastName  String
   password  String
   phone     String
-
+  deletedAt DateTime?
   profile   UserProfile?
   cart      Cart?
   roles     UserRole[]

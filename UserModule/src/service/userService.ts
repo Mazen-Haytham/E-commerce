@@ -78,7 +78,7 @@
 //     return user;
 //   }
 import bcrypt from "bcrypt";
-import { UserRepo } from "../repo/userRepo.js";
+import { UserRepo } from "../repo/Repo.js";
 import {
   UsersResponse,
   User,
@@ -93,7 +93,8 @@ import { UserMapper } from "../Dtos/userDtos.js";
 export class UserService {
   constructor(private readonly userRepo: UserRepo) {}
   getAllUsers = async (): Promise<UsersResponse[]> => {
-    const userData: UserWithProfileAndRoles[] = await this.userRepo.getAllUsers();
+    const userData: UserWithProfileAndRoles[] =
+      await this.userRepo.getAllUsers();
     const users = UserMapper.getAllUsersDTO(userData);
     return users;
   };
@@ -103,7 +104,10 @@ export class UserService {
     const user = await this.findUserByEmail(data.email);
     if (user) throw new AppError("User Already Exists With That Email", 409);
     const password = await bcrypt.hash(data.password, 12);
-    const newUser:UserWithProfileAndRoles = await this.userRepo.createUser({ ...data, password });
+    const newUser: UserWithProfileAndRoles = await this.userRepo.createUser({
+      ...data,
+      password,
+    });
     return UserMapper.createUserDTO(newUser);
   };
   findUserById = async (userId: string) => {
@@ -114,16 +118,31 @@ export class UserService {
     const user = await this.userRepo.findUserByEmail(email);
     return user;
   };
-  updateUser = async (userId: string, newData: UpdateUserDTO) => {
+  updateUser = async (
+    userId: string,
+    newData: UpdateUserDTO,
+  ): Promise<User | null> => {
     const user = await this.findUserById(userId);
-    if (!user) throw new AppError("User Not Found", 404);
+    if (!user || (user && user.deletedAt))
+      throw new AppError("User Not Found", 404);
     const dto: UpdateUserDTO = {};
     if (newData.password)
       dto.password = await bcrypt.hash(newData.password, 12);
     if (dto.password && user.password === dto.password)
       throw new AppError("This Password already Exists", 400);
-
+    if (newData.phone) dto.phone = newData.phone;
+    if (dto.phone && user.phone === dto.phone)
+      throw new AppError("This Phone Already Exists", 400);
+    if (Object.keys(dto).length === 0)
+      throw new AppError("There Is No Data To Update The User With", 400);
     const updateUser: User | null = await this.userRepo.updateUser(userId, dto);
     return updateUser;
+  };
+  deactivateUser = async (userId: string): Promise<string | undefined> => {
+    const user = this.findUserById(userId);
+    if (!user) throw new AppError("User Not Found", 404);
+    const deactivatedUser = await this.userRepo.deactivateUser(userId);
+    const id: string = deactivatedUser.id;
+    return id;
   };
 }

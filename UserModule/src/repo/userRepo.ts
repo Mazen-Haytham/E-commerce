@@ -1,17 +1,14 @@
 import { create } from "node:domain";
 import { prisma } from "../../../src/shared/prisma.js";
-import {
-  createUserDTO,
-  UpdateUserDTO,
-  User,
-} from "../types/userTypes.js";
-export class UserRepo {
+import { UserRepo } from "../repo/Repo.js";
+import { createUserDTO, UpdateUserDTO, User } from "../types/userTypes.js";
+export class PrismaUserRepo implements UserRepo {
   // ADMIN
   getAllUsers = async () => {
     const userData = await prisma.user.findMany({
       select: {
         id: true,
-        email:true,
+        email: true,
         firstName: true,
         lastName: true,
         password: true,
@@ -40,7 +37,7 @@ export class UserRepo {
   //LOGIN
   findUserByEmail = async (email: string) => {
     const userData = await prisma.user.findUnique({
-      where: { email: email },
+      where: { email: email, deletedAt: null },
       select: {
         id: true,
         firstName: true,
@@ -71,7 +68,7 @@ export class UserRepo {
 
   findUserById = async (userId: string) => {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, deletedAt: null },
       select: {
         id: true,
         firstName: true,
@@ -158,5 +155,17 @@ export class UserRepo {
       data: dto,
     });
     return updateUser;
+  };
+  deactivateUser = async (userId: string) => {
+    const deactivatedUser = await prisma.user.update({
+      where: { id: userId },
+      select: {
+        id: true,
+      },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
+    return deactivatedUser;
   };
 }
