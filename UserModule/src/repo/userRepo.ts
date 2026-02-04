@@ -13,6 +13,7 @@ export class PrismaUserRepo implements UserRepo {
         lastName: true,
         password: true,
         phone: true,
+        deletedAt:true,
         profile: {
           select: {
             profilePic: true,
@@ -143,16 +144,38 @@ export class PrismaUserRepo implements UserRepo {
     });
     return newUser;
   };
-  updateUser = async (
-    userId: string,
-    user: UpdateUserDTO,
-  ): Promise<User | null> => {
+  updateUser = async (userId: string, user: UpdateUserDTO) => {
     const dto: UpdateUserDTO = {};
     if (user.password) dto.password = user.password;
     if (user.phone) dto.phone = user.phone;
-    const updateUser: User = await prisma.user.update({
+    dto.profile=user.profile
+    const updateUser = await prisma.user.update({
       where: { id: userId },
-      data: dto,
+      data: {
+        password: dto.password,
+        phone: dto.phone,
+        profile: dto.profile
+          ? {
+              update: {
+                profilePic: dto.profile.profilePic,
+                membership: dto.profile.membership,
+                recommendations: dto.profile.recommendations,
+              },
+            }
+          : undefined,
+      },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        profile: {
+          select: {
+            profilePic: true,
+            membership: true,
+            recommendations: true,
+          },
+        },
+      },
     });
     return updateUser;
   };

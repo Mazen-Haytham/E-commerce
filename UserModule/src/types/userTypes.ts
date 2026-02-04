@@ -5,6 +5,7 @@ export interface User {
   lastName: string;
   password: string;
   phone: string;
+  deletedAt?:string
 }
 export interface Profile {
   userId: string;
@@ -34,6 +35,13 @@ export interface createUserDTO {
 export interface UpdateUserDTO {
   password?: string;
   phone?: string;
+  profile?:UpdateProfileDTO
+}
+
+export interface UpdateProfileDTO {
+  profilePic?: string;
+  membership?: string;
+  recommendations?: any; // or a proper type
 }
 
 
@@ -89,6 +97,17 @@ export interface UserWithProfileAndRoles {
 
 // The return type of getAllUsers
 export type GetAllUsersResponse = UserWithProfileAndRoles[];
+
+export interface UserResponseDTO {
+  id: string;
+  email: string;
+  phone: string;
+  profile: {
+    profilePic: string | null;
+    membership: string;
+    recommendations: unknown;
+  } | null;
+}
 
 export interface UserParams{
   id:string

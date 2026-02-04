@@ -81,12 +81,11 @@ import bcrypt from "bcrypt";
 import { UserRepo } from "../repo/Repo.js";
 import {
   UsersResponse,
-  User,
   createUserResponse,
   createUserDTO,
-  UpdateUser,
   UpdateUserDTO,
   UserWithProfileAndRoles,
+  UserResponseDTO,
 } from "../types/userTypes.js";
 import { AppError } from "../../../src/utils/AppError.js";
 import { UserMapper } from "../Dtos/userDtos.js";
@@ -101,6 +100,11 @@ export class UserService {
   createUser = async (
     data: createUserDTO,
   ): Promise<createUserResponse | null> => {
+    if (!data.email || !data.password) {
+      throw new AppError("Email and password are required", 400);
+    }
+
+    console.log("i am here");
     const user = await this.findUserByEmail(data.email);
     if (user) throw new AppError("User Already Exists With That Email", 409);
     const password = await bcrypt.hash(data.password, 12);
@@ -121,21 +125,14 @@ export class UserService {
   updateUser = async (
     userId: string,
     newData: UpdateUserDTO,
-  ): Promise<User | null> => {
+  ): Promise<UserResponseDTO | null> => {
     const user = await this.findUserById(userId);
-    if (!user || (user && user.deletedAt))
-      throw new AppError("User Not Found", 404);
-    const dto: UpdateUserDTO = {};
-    if (newData.password)
-      dto.password = await bcrypt.hash(newData.password, 12);
-    if (dto.password && user.password === dto.password)
-      throw new AppError("This Password already Exists", 400);
-    if (newData.phone) dto.phone = newData.phone;
-    if (dto.phone && user.phone === dto.phone)
-      throw new AppError("This Phone Already Exists", 400);
-    if (Object.keys(dto).length === 0)
-      throw new AppError("There Is No Data To Update The User With", 400);
-    const updateUser: User | null = await this.userRepo.updateUser(userId, dto);
+    if (!user) throw new AppError("User Not Found", 404);
+    const dto: UpdateUserDTO = await this.getUserInput(user, newData);
+    const updateUser: UserResponseDTO | null = await this.userRepo.updateUser(
+      userId,
+      dto,
+    );
     return updateUser;
   };
   deactivateUser = async (userId: string): Promise<string | undefined> => {
@@ -144,5 +141,26 @@ export class UserService {
     const deactivatedUser = await this.userRepo.deactivateUser(userId);
     const id: string = deactivatedUser.id;
     return id;
+  };
+  getUserInput = async (
+    user: any,
+    newData: UpdateUserDTO,
+  ): Promise<UpdateUserDTO> => {
+    const dto: UpdateUserDTO = {};
+    if (newData.password) {
+      dto.password = await bcrypt.hash(newData.password, 12);
+      if (user.password === dto.password)
+        throw new AppError("This Password already Exists", 400);
+    }
+    if (newData.phone) {
+      dto.phone = newData.phone;
+      if (user.phone === dto.phone)
+        throw new AppError("This Phone Already Exists", 400);
+    }
+    dto.profile = newData.profile ?? undefined;
+    console.log(dto);
+    if (Object.keys(dto).length === 1 && !dto.profile)
+      throw new AppError("There Is No Data To Update The User With", 400);
+    return dto;
   };
 }
