@@ -9,6 +9,7 @@ export class UserMapper{
         lastName: u.lastName,
         password: u.password,
         phone: u.phone,
+        deletedAt:u.deletedAt ?? "Active User",
       };
       let userProfile: Profile | undefined;
       if (u.profile) {
