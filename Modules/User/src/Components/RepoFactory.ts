@@ -1,4 +1,4 @@
-import { AppError } from "../../../src/utils/AppError.js";
+import { AppError } from "../../../../src/utils/AppError.js";
 import { UserRepo } from "../repo/Repo.js";
 import { PrismaUserRepo } from "../repo/userRepo.js";
 

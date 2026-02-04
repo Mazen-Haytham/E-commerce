@@ -87,7 +87,7 @@ import {
   UserWithProfileAndRoles,
   UserResponseDTO,
 } from "../types/userTypes.js";
-import { AppError } from "../../../src/utils/AppError.js";
+import { AppError } from "../../../../src/utils/AppError.js";
 import { UserMapper } from "../Dtos/userDtos.js";
 export class UserService {
   constructor(private readonly userRepo: UserRepo) {}

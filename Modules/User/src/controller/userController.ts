@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { UserService } from "../service/userService.js";
-import { AppError } from "../../../src/utils/AppError.js";
+import { AppError } from "../../../../src/utils/AppError.js";
 import { UserEmailParams, UserParams } from "../types/userTypes.js";
 export class UserController {
   constructor(private readonly userService: UserService) {}

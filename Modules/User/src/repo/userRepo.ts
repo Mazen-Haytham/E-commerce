@@ -1,5 +1,5 @@
 import { create } from "node:domain";
-import { prisma } from "../../../src/shared/prisma.js";
+import { prisma } from "../../../../src/shared/prisma.js";
 import { UserRepo } from "../repo/Repo.js";
 import { createUserDTO, UpdateUserDTO, User } from "../types/userTypes.js";
 export class PrismaUserRepo implements UserRepo {
