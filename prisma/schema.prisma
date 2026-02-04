@@ -158,7 +158,7 @@ model Inventory {
   id       String @id @default(uuid())
   name     String
   location String
-
+  deletedAt DateTime?
   stock ProductStock[]
 
   @@schema("inventory")
