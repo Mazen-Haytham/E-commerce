@@ -9,13 +9,13 @@ import {
 } from "../types/types";
 export interface Repo {
   findInventoryById(id: string): Promise<findInventoryByIdResponse | null>;
-  updateInventory(inventoryId :string,input: updateInventoryInput): Promise<Inventory | null>;
+  updateInventory(inventoryId :string,input: updateInventoryInput): Promise<Inventory>;
   updateProductStockLevel(
     input: updateProductVariantStockLevel,
-  ): Promise<updateProductVariantStockLevel | null>;
-  deactivateInventory(inventoryId: string): Promise<Inventory | null>;
-  addInventory(input: AddInventoryInput): Promise<AddInventoryResponse | null>;
+  ): Promise<updateProductVariantStockLevel>;
+  deactivateInventory(inventoryId: string): Promise<Inventory>;
+  addInventory(input: AddInventoryInput): Promise<AddInventoryResponse>;
   addProductVariantInInventoryInput(
     input: addProductVariantInInventoryInput,
-  ): Promise<addProductVariantInInventoryInput | null>;
+  ): Promise<addProductVariantInInventoryInput>;
 }

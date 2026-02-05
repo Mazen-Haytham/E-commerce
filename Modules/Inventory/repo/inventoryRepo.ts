@@ -18,17 +18,14 @@ export class PrismaInventory implements Repo {
     });
     return Inventories;
   }
-  async addInventory(
-    input: AddInventoryInput,
-  ): Promise<AddInventoryResponse | null> {
-    const inventory: AddInventoryResponse | null =
-      await prisma.inventory.create({
-        data: input,
-      });
+  async addInventory(input: AddInventoryInput): Promise<AddInventoryResponse> {
+    const inventory: AddInventoryResponse = await prisma.inventory.create({
+      data: input,
+    });
     return inventory;
   }
-  async deactivateInventory(inventoryId: string): Promise<Inventory | null> {
-    const inventory: Inventory | null = await prisma.inventory.update({
+  async deactivateInventory(inventoryId: string): Promise<Inventory> {
+    const inventory: Inventory = await prisma.inventory.update({
       where: { id: inventoryId },
       data: {
         deletedAt: new Date(),
@@ -39,11 +36,11 @@ export class PrismaInventory implements Repo {
   async updateInventory(
     inventoryId: string,
     input: updateInventoryInput,
-  ): Promise<Inventory | null> {
+  ): Promise<Inventory> {
     const dto: updateInventoryInput = {};
     dto.name = input.name ?? undefined;
     dto.location = input.location ?? undefined;
-    const inventory: Inventory | null = await prisma.inventory.update({
+    const inventory: Inventory = await prisma.inventory.update({
       where: { id: inventoryId },
       data: dto,
     });
@@ -51,12 +48,35 @@ export class PrismaInventory implements Repo {
   }
   async addProductVariantInInventoryInput(
     input: addProductVariantInInventoryInput,
-  ): Promise<addProductVariantInInventoryInput | null> {
-    const productStock: addProductVariantInInventoryInput | null =
+  ): Promise<addProductVariantInInventoryInput> {
+    const productStock: addProductVariantInInventoryInput =
       await prisma.productStock.create({
-        data: input
+        data: input,
       });
     return productStock;
   }
-  
+  async updateProductStockLevel(
+    input: updateProductVariantStockLevel,
+  ): Promise<updateProductVariantStockLevel> {
+    const productStock: updateProductVariantStockLevel =
+      await prisma.productStock.update({
+        where: {
+          productVariantId_inventoryId: {
+            productVariantId: input.productVariantId,
+            inventoryId: input.inventoryId,
+          },
+        },
+        data: {
+          stockLevel: {
+            increment: input.stockLevel,
+          },
+        },
+        select: {
+          productVariantId: true,
+          inventoryId: true,
+          stockLevel: true,
+        },
+      });
+    return productStock;
+  }
 }
