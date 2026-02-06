@@ -78,7 +78,7 @@ model Role {
   name String @unique
 
   users UserRole[]
-
+  
   @@schema("users")
 }
 
@@ -88,7 +88,6 @@ model UserRole {
   userId String
   role   Role   @relation(fields: [roleId], references: [id])
   roleId Int
-
   @@unique([userId, roleId])
   @@schema("users")
 }
@@ -138,7 +137,8 @@ model Category {
   name String @unique
 
   products ProductCategory[]
-
+  createdAt DateTime @default(now())
+  updateAt DateTime @updatedAt
   @@schema("catalog")
 }
 
@@ -160,8 +160,10 @@ model Inventory {
   location String
   deletedAt DateTime?
   stock ProductStock[]
-
+  @@unique([name,location])
   @@schema("inventory")
+  createdAt DateTime @default(now())
+  updateAt DateTime @updatedAt
 }
 
 model ProductStock {
@@ -172,7 +174,8 @@ model ProductStock {
 
   stockLevel   Int @default(0)
   restockAlert Int @default(0)
-
+  createdAt DateTime @default(now())
+  updateAt DateTime @updatedAt
   @@id([productVariantId, inventoryId])
   @@schema("inventory")
 }

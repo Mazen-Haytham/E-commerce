@@ -3,6 +3,10 @@ import {
   AddInventoryResponse,
   addProductVariantInInventoryInput,
   findInventoryByIdResponse,
+  findInventoryByNameAndLocationInput,
+  findInventoryByNameAndLocationResponse,
+  getProductVariantStockFromInventoryInput,
+  getProductVariantStockFromInventoryResponse,
   Inventory,
   updateInventoryInput,
   updateProductVariantStockLevel,
@@ -78,5 +82,40 @@ export class PrismaInventory implements Repo {
         },
       });
     return productStock;
+  }
+  async getProductVariantFromInventory(
+    input: getProductVariantStockFromInventoryInput,
+  ): Promise<getProductVariantStockFromInventoryResponse | null> {
+    const stockLevel: getProductVariantStockFromInventoryResponse | null =
+      await prisma.productStock.findUnique({
+        where: {
+          productVariantId_inventoryId: {
+            productVariantId: input.productVariantId,
+            inventoryId: input.inventoryId,
+          },
+        },
+        select: {
+          productVariantId: true,
+          inventoryId: true,
+          stockLevel: true,
+          inventory: {
+            select: {
+              location: true,
+            },
+          },
+        },
+      });
+      return stockLevel;
+  }
+  async findInventoryByNameAndLocation(input: findInventoryByNameAndLocationInput): Promise<findInventoryByNameAndLocationResponse | null> {
+    const inv:findInventoryByNameAndLocationResponse|null=await prisma.inventory.findFirst({
+      where:{name:input.name,location:input.location,deletedAt:null},
+      select:{
+        name:true,
+        location:true,
+        id:true
+      }
+    });
+    return inv;
   }
 }
