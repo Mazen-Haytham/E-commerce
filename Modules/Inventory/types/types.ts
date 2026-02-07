@@ -38,6 +38,7 @@ export interface addProductVariantInInventoryInput{
     stockLevel:number,
     restockAlert:number
 }
+
 export interface updateProductVariantStockLevel{
     productVariantId:string;
     inventoryId:string;
@@ -57,3 +58,6 @@ export interface getProductVariantStockFromInventoryResponse{
     stockLevel:number
 }
 
+export interface  findByIdParams{
+    id:string
+}

@@ -1,3 +1,4 @@
+import { PrismaClient } from "@prisma/client/extension";
 import {
   AddInventoryInput,
   AddInventoryResponse,
@@ -10,26 +11,25 @@ import {
   Inventory,
   updateInventoryInput,
   updateProductVariantStockLevel,
-} from "../types/types";
-import { Repo } from "./repo";
-import { prisma } from "../../../src/shared/prisma";
+} from "../types/types.js";
+import { Repo } from "./repo.js";
+
 export class PrismaInventory implements Repo {
-  async findInventoryById(
-    id: string,
-  ): Promise<findInventoryByIdResponse | null> {
-    const Inventories: Inventory | null = await prisma.inventory.findUnique({
+  async findInventoryById(id: string,db:PrismaClient): Promise<Inventory | null> {
+    const Inventories = await db.inventory.findUnique({
       where: { id: id, deletedAt: null },
+      select: { id: true, name: true, location: true, deletedAt: true },
     });
     return Inventories;
   }
-  async addInventory(input: AddInventoryInput): Promise<AddInventoryResponse> {
-    const inventory: AddInventoryResponse = await prisma.inventory.create({
+  async addInventory(input: AddInventoryInput,db:PrismaClient): Promise<AddInventoryResponse> {
+    const inventory: AddInventoryResponse = await db.inventory.create({
       data: input,
     });
     return inventory;
   }
-  async deactivateInventory(inventoryId: string): Promise<Inventory> {
-    const inventory: Inventory = await prisma.inventory.update({
+  async deactivateInventory(inventoryId: string,db:PrismaClient): Promise<Inventory> {
+    const inventory: Inventory = await db.inventory.update({
       where: { id: inventoryId },
       data: {
         deletedAt: new Date(),
@@ -39,31 +39,31 @@ export class PrismaInventory implements Repo {
   }
   async updateInventory(
     inventoryId: string,
-    input: updateInventoryInput,
+    input: updateInventoryInput,db:PrismaClient
   ): Promise<Inventory> {
     const dto: updateInventoryInput = {};
     dto.name = input.name ?? undefined;
     dto.location = input.location ?? undefined;
-    const inventory: Inventory = await prisma.inventory.update({
+    const inventory: Inventory = await db.inventory.update({
       where: { id: inventoryId },
       data: dto,
     });
     return inventory;
   }
   async addProductVariantInInventoryInput(
-    input: addProductVariantInInventoryInput,
+    input: addProductVariantInInventoryInput,db:PrismaClient
   ): Promise<addProductVariantInInventoryInput> {
     const productStock: addProductVariantInInventoryInput =
-      await prisma.productStock.create({
+      await db.productStock.create({
         data: input,
       });
     return productStock;
   }
   async updateProductStockLevel(
-    input: updateProductVariantStockLevel,
+    input: updateProductVariantStockLevel,db:PrismaClient
   ): Promise<updateProductVariantStockLevel> {
     const productStock: updateProductVariantStockLevel =
-      await prisma.productStock.update({
+      await db.productStock.update({
         where: {
           productVariantId_inventoryId: {
             productVariantId: input.productVariantId,
@@ -84,10 +84,10 @@ export class PrismaInventory implements Repo {
     return productStock;
   }
   async getProductVariantFromInventory(
-    input: getProductVariantStockFromInventoryInput,
+    input: getProductVariantStockFromInventoryInput,db:PrismaClient
   ): Promise<getProductVariantStockFromInventoryResponse | null> {
     const stockLevel: getProductVariantStockFromInventoryResponse | null =
-      await prisma.productStock.findUnique({
+      await db.productStock.findUnique({
         where: {
           productVariantId_inventoryId: {
             productVariantId: input.productVariantId,
@@ -105,17 +105,20 @@ export class PrismaInventory implements Repo {
           },
         },
       });
-      return stockLevel;
+    return stockLevel;
   }
-  async findInventoryByNameAndLocation(input: findInventoryByNameAndLocationInput): Promise<findInventoryByNameAndLocationResponse | null> {
-    const inv:findInventoryByNameAndLocationResponse|null=await prisma.inventory.findFirst({
-      where:{name:input.name,location:input.location,deletedAt:null},
-      select:{
-        name:true,
-        location:true,
-        id:true
-      }
-    });
+  async findInventoryByNameAndLocation(
+    input: findInventoryByNameAndLocationInput,db:PrismaClient
+  ): Promise<findInventoryByNameAndLocationResponse | null> {
+    const inv: findInventoryByNameAndLocationResponse | null =
+      await db.inventory.findFirst({
+        where: { name: input.name, location: input.location, deletedAt: null },
+        select: {
+          name: true,
+          location: true,
+          id: true,
+        },
+      });
     return inv;
   }
 }
