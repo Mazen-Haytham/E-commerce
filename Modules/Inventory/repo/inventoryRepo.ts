@@ -3,7 +3,6 @@ import {
   AddInventoryInput,
   AddInventoryResponse,
   addProductVariantInInventoryInput,
-  findInventoryByIdResponse,
   findInventoryByNameAndLocationInput,
   findInventoryByNameAndLocationResponse,
   getProductVariantStockFromInventoryInput,
@@ -15,20 +14,52 @@ import {
 import { Repo } from "./repo.js";
 
 export class PrismaInventory implements Repo {
-  async findInventoryById(id: string,db:PrismaClient): Promise<Inventory | null> {
+  async getAllInventories(
+    db: PrismaClient,
+    data?: findInventoryByNameAndLocationInput,
+  ): Promise<Inventory[]> {
+    const inventories: Inventory[] = await db.inventory.findMany({
+      where: {
+        deletedAt: null,
+        name: data?.name
+          ? { contains: data.name.trim(), mode: "insensitive" }
+          : undefined,
+        location: data?.location
+          ? { contains: data.location.trim(), mode: "insensitive" }
+          : undefined,
+      },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        deletedAt: true,
+      },
+    });
+    return inventories;
+  }
+  async findInventoryById(
+    id: string,
+    db: PrismaClient,
+  ): Promise<Inventory | null> {
     const Inventories = await db.inventory.findUnique({
       where: { id: id, deletedAt: null },
       select: { id: true, name: true, location: true, deletedAt: true },
     });
     return Inventories;
   }
-  async addInventory(input: AddInventoryInput,db:PrismaClient): Promise<AddInventoryResponse> {
+  async addInventory(
+    input: AddInventoryInput,
+    db: PrismaClient,
+  ): Promise<AddInventoryResponse> {
     const inventory: AddInventoryResponse = await db.inventory.create({
       data: input,
     });
     return inventory;
   }
-  async deactivateInventory(inventoryId: string,db:PrismaClient): Promise<Inventory> {
+  async deactivateInventory(
+    inventoryId: string,
+    db: PrismaClient,
+  ): Promise<Inventory> {
     const inventory: Inventory = await db.inventory.update({
       where: { id: inventoryId },
       data: {
@@ -39,7 +70,8 @@ export class PrismaInventory implements Repo {
   }
   async updateInventory(
     inventoryId: string,
-    input: updateInventoryInput,db:PrismaClient
+    input: updateInventoryInput,
+    db: PrismaClient,
   ): Promise<Inventory> {
     const dto: updateInventoryInput = {};
     dto.name = input.name ?? undefined;
@@ -51,7 +83,8 @@ export class PrismaInventory implements Repo {
     return inventory;
   }
   async addProductVariantInInventoryInput(
-    input: addProductVariantInInventoryInput,db:PrismaClient
+    input: addProductVariantInInventoryInput,
+    db: PrismaClient,
   ): Promise<addProductVariantInInventoryInput> {
     const productStock: addProductVariantInInventoryInput =
       await db.productStock.create({
@@ -60,7 +93,8 @@ export class PrismaInventory implements Repo {
     return productStock;
   }
   async updateProductStockLevel(
-    input: updateProductVariantStockLevel,db:PrismaClient
+    input: updateProductVariantStockLevel,
+    db: PrismaClient,
   ): Promise<updateProductVariantStockLevel> {
     const productStock: updateProductVariantStockLevel =
       await db.productStock.update({
@@ -84,7 +118,8 @@ export class PrismaInventory implements Repo {
     return productStock;
   }
   async getProductVariantFromInventory(
-    input: getProductVariantStockFromInventoryInput,db:PrismaClient
+    input: getProductVariantStockFromInventoryInput,
+    db: PrismaClient,
   ): Promise<getProductVariantStockFromInventoryResponse | null> {
     const stockLevel: getProductVariantStockFromInventoryResponse | null =
       await db.productStock.findUnique({
@@ -108,11 +143,16 @@ export class PrismaInventory implements Repo {
     return stockLevel;
   }
   async findInventoryByNameAndLocation(
-    input: findInventoryByNameAndLocationInput,db:PrismaClient
+    input: findInventoryByNameAndLocationInput,
+    db: PrismaClient,
   ): Promise<findInventoryByNameAndLocationResponse | null> {
     const inv: findInventoryByNameAndLocationResponse | null =
       await db.inventory.findFirst({
-        where: { name: input.name, location: input.location, deletedAt: null },
+        where: {
+          name: { contains: input.name.trim(), mode: "insensitive" },
+          location: { contains: input.location.trim(), mode: "insensitive" },
+          deletedAt: null,
+        },
         select: {
           name: true,
           location: true,

@@ -16,6 +16,7 @@ import { prisma } from "../../../src/shared/prisma.js";
 import { PrismaClient } from "@prisma/client/extension";
 export class InventoryService {
   constructor(private readonly inventoryRepo: Repo) {}
+
   findInventoryByID = async (
     id: string,
     db = prisma,
@@ -116,7 +117,7 @@ export class InventoryService {
         400,
       );
     if (input.stockLevel < 0) {
-      if (productStock.stockLevel - input.stockLevel < 0)
+      if (productStock.stockLevel + input.stockLevel < 0)
         throw new AppError(
           "Enter A Number Smalller Than or Eqauls to Stock Level ",
           400,
@@ -153,5 +154,16 @@ export class InventoryService {
 
       return success;
     });
+  };
+
+  getAllInventories = async (
+    db = prisma,
+    filters?: findInventoryByNameAndLocationInput,
+  ): Promise<Inventory[]> => {
+    const inventories: Inventory[] = await this.inventoryRepo.getAllInventories(
+      db,
+      filters,
+    );
+    return inventories;
   };
 }
