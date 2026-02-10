@@ -18,6 +18,7 @@ CREATE TABLE "users"."User" (
     "lastName" TEXT NOT NULL,
     "password" TEXT NOT NULL,
     "phone" TEXT NOT NULL,
+    "deletedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -61,7 +62,7 @@ CREATE TABLE "users"."CartItem" (
 
 -- CreateTable
 CREATE TABLE "users"."Role" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
 
     CONSTRAINT "Role_pkey" PRIMARY KEY ("id")
@@ -71,7 +72,7 @@ CREATE TABLE "users"."Role" (
 CREATE TABLE "users"."UserRole" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "roleId" TEXT NOT NULL,
+    "roleId" INTEGER NOT NULL,
 
     CONSTRAINT "UserRole_pkey" PRIMARY KEY ("id")
 );
@@ -108,6 +109,8 @@ CREATE TABLE "catalog"."ProductVariant" (
 CREATE TABLE "catalog"."Category" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updateAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Category_pkey" PRIMARY KEY ("id")
 );
@@ -126,6 +129,9 @@ CREATE TABLE "inventory"."Inventory" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "location" TEXT NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updateAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Inventory_pkey" PRIMARY KEY ("id")
 );
@@ -136,6 +142,8 @@ CREATE TABLE "inventory"."ProductStock" (
     "inventoryId" TEXT NOT NULL,
     "stockLevel" INTEGER NOT NULL DEFAULT 0,
     "restockAlert" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updateAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "ProductStock_pkey" PRIMARY KEY ("productVariantId","inventoryId")
 );
@@ -207,6 +215,9 @@ CREATE UNIQUE INDEX "Category_name_key" ON "catalog"."Category"("name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ProductCategory_productId_categoryId_key" ON "catalog"."ProductCategory"("productId", "categoryId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Inventory_name_location_key" ON "inventory"."Inventory"("name", "location");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PaymentMethod_name_key" ON "orders"."PaymentMethod"("name");
