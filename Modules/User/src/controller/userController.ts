@@ -8,7 +8,6 @@ export class UserController {
     try {
       const { email, firstName, lastName, password, phone, profilePic } =
         req.body;
-      console.log(req.body);
       const newUser = await this.userService.createUser({
         email,
         firstName,
@@ -106,5 +105,4 @@ export class UserController {
       next(err);
     }
   };
-  
 }

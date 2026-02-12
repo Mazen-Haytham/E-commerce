@@ -103,8 +103,7 @@ export class UserService {
     if (!data.email || !data.password) {
       throw new AppError("Email and password are required", 400);
     }
-
-    console.log("i am here");
+    
     const user = await this.findUserByEmail(data.email);
     if (user) throw new AppError("User Already Exists With That Email", 409);
     const password = await bcrypt.hash(data.password, 12);
@@ -112,6 +111,7 @@ export class UserService {
       ...data,
       password,
     });
+    
     return UserMapper.createUserDTO(newUser);
   };
   findUserById = async (userId: string) => {
