@@ -13,7 +13,7 @@ export class PrismaUserRepo implements UserRepo {
         lastName: true,
         password: true,
         phone: true,
-        deletedAt:true,
+        deletedAt: true,
         profile: {
           select: {
             profilePic: true,
@@ -45,6 +45,7 @@ export class PrismaUserRepo implements UserRepo {
         lastName: true,
         password: true,
         phone: true,
+        tokenVersion:true,
         profile: {
           select: {
             profilePic: true,
@@ -148,7 +149,7 @@ export class PrismaUserRepo implements UserRepo {
     const dto: UpdateUserDTO = {};
     if (user.password) dto.password = user.password;
     if (user.phone) dto.phone = user.phone;
-    dto.profile=user.profile
+    dto.profile = user.profile;
     const updateUser = await prisma.user.update({
       where: { id: userId },
       data: {

@@ -1,10 +1,11 @@
-// src/types/express.d.ts
-import { JwtPayload } from "../utils/jwt.ts";
+// src/shared/express.d.ts
+import { token } from "../../Modules/Auth/types/authTypes";
+
 
 declare global {
   namespace Express {
     interface Request {
-      user?: JwtPayload;
+      user?: token;
     }
   }
 }
