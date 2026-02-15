@@ -35,12 +35,12 @@ export class UserController {
     }
   };
   updateUser = async (
-    req: Request<UserParams>,
+    req: Request,
     res: Response,
     next: NextFunction,
   ) => {
     try {
-      const id = req.params.id;
+      const id = req.params.id as string;
       console.log(id);
       const updatedUser = await this.userService.updateUser(id, req.body);
       return res.status(200).send({
@@ -53,12 +53,12 @@ export class UserController {
     }
   };
   deactivateUser = async (
-    req: Request<UserParams>,
+    req: Request,
     res: Response,
     next: NextFunction,
   ) => {
     try {
-      const id = req.params.id;
+      const id = req.params.id as string;
       const deactivatedUserId: string | undefined =
         await this.userService.deactivateUser(id);
       if (!deactivatedUserId) throw new AppError("Something Went Wrong", 500);
@@ -71,12 +71,12 @@ export class UserController {
     }
   };
   getUserById = async (
-    req: Request<UserParams>,
+    req: Request,
     res: Response,
     next: NextFunction,
   ) => {
     try {
-      const id = req.params.id;
+      const id = req.params.id as string;
       const user = await this.userService.findUserById(id);
       if (!user) throw new AppError("User Not Found", 404);
       return res.status(200).send({
@@ -88,12 +88,12 @@ export class UserController {
     }
   };
   getUserByEmail = async (
-    req: Request<UserEmailParams>,
+    req: Request,
     res: Response,
     next: NextFunction,
   ) => {
     try {
-      const email = req.params.email;
+      const email = req.params.email as string;
       console.log(email);
       const user = await this.userService.findUserByEmail(email);
       if (!user) throw new AppError("User Not Found", 404);

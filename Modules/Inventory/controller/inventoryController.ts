@@ -14,12 +14,12 @@ import { prisma } from "../../../src/shared/prisma.js";
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
   findInventoryById = async (
-    req: Request<findByIdParams>,
+    req: Request,
     res: Response,
     next: NextFunction,
   ) => {
     try {
-      const id: string = req.params.id;
+      const id = req.params.id as string;
       const inv: Inventory | null =
         await this.inventoryService.findInventoryByID(id);
       if (!inv) throw new AppError("Inventory Is Not Found", 404);
@@ -32,13 +32,13 @@ export class InventoryController {
     }
   };
   findInventoryByNameAndLocation = async (
-    req: Request<{}, {}, {}, findInventoryByNameAndLocationInput>,
+    req: Request,
     res: Response,
     next: NextFunction,
   ) => {
     try {
-      const name: string = req.query.name;
-      const location: string = req.query.location;
+      const name = req.query.name as string;
+      const location = req.query.location as string;
       if (!name || !location)
         throw new AppError(
           "Please Enter The Name and Location Of The Inventory",
@@ -72,12 +72,12 @@ export class InventoryController {
     }
   };
   deactivateInventory = async (
-    req: Request<findByIdParams>,
+    req: Request,
     res: Response,
     next: NextFunction,
   ) => {
     try {
-      const id: string = req.params.id;
+      const id: string = req.params.id as string;
       const deletedInv: Inventory =
         await this.inventoryService.deactivateInventory(id);
       return res.status(200).send({
@@ -88,13 +88,9 @@ export class InventoryController {
       next(err);
     }
   };
-  updateInventory = async (
-    req: Request<findByIdParams>,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  updateInventory = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id: string = req.params.id;
+      const id: string = req.params.id as string;
       const data = req.body;
       const updatedInventory: Inventory =
         await this.inventoryService.updateInventory(id, data);
@@ -134,14 +130,14 @@ export class InventoryController {
   };
 
   getAllInventories = async (
-    req: Request<{}, {}, {}, findInventoryByNameAndLocationInput>,
+    req: Request,
     res: Response,
     next: NextFunction,
   ) => {
     try {
       const filters: findInventoryByNameAndLocationInput = {
-        name: req.query.name,
-        location: req.query.location,
+        name: req.query.name as string,
+        location: req.query.location as string,
       };
       if (filters.name || filters.location) {
         if (
