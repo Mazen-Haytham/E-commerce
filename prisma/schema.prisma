@@ -140,6 +140,7 @@ model Category {
   products ProductCategory[]
   createdAt DateTime @default(now())
   updateAt DateTime @updatedAt
+  deletedAt DateTime?
   @@schema("catalog")
 }
 
