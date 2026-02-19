@@ -15,3 +15,8 @@ export interface refreshToken{
     token:token,
     tokenVersion:number
 }
+export interface UserRole {
+  role: {
+    name: string;
+  };
+}

@@ -1,7 +1,7 @@
 // src/Modules/Auth/middleware/authorize.ts
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "../../../src/utils/AppError.js";
-import { token } from "../types/authTypes.js";
+import { token,UserRole } from "../types/authTypes.js";
 
 export const authorize = (allowedRoles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -10,9 +10,9 @@ export const authorize = (allowedRoles: string[]) => {
     if (!user) {
       return next(new AppError("Not authenticated", 401));
     }
-
+    console.log(user.roles);
     // Check if user has at least one of the allowed roles
-    const hasRole = user.roles.some((role:any) => allowedRoles.includes(role));
+    const hasRole = user.roles.some((r:UserRole) => allowedRoles.includes(r.role.name));
 
     if (!hasRole) {
       return next(new AppError("Forbidden: insufficient permissions", 403));
