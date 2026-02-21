@@ -46,4 +46,5 @@ export interface Repo {
     db: PrismaClient,
     data?: findInventoryByNameAndLocationInput,
   ): Promise<Inventory[]>;
+  getProductVariant(variantId:string,db:PrismaClient):Promise<getProductVariantStockFromInventoryResponse[]>
 }
