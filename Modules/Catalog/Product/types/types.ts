@@ -46,13 +46,13 @@
 // Reusable Interfaces
 
 export interface VariantImage {
-  id: string;
   url: string;
-  isPrimary?: boolean;
+  altText: string | null;
+  isPrimary: boolean;
 }
 
 export interface InventoryStock {
-  id: string;        // inventory ID
+  id: string; // inventory ID
   stockLevel: number;
   restock: number;
 }
@@ -66,7 +66,6 @@ export interface ProductVariantBase {
 }
 
 export interface ProductVariantInput extends ProductVariantBase {
-  stockLevel: number;
   images: VariantImage[];
   inventories: InventoryStock[];
 }
@@ -83,11 +82,90 @@ export interface ProductBase {
 }
 
 export interface AddProductInput extends ProductBase {
-  categories: number[];
+  categories: string[];
   variants: ProductVariantInput[];
 }
 
 export interface ProductResponse extends ProductBase {
   id: string;
   variants: ProductVariantResponse[];
+}
+
+export interface AddProductResponse {
+  id: string;
+  name: string;
+  producer: string | null;
+  categories: {
+    category: {
+      name: string;
+    };
+  }[];
+  variants: {
+    productId: string;
+    id: string;
+  }[];
+}
+
+export interface GetAllProductsVariantResponse {
+  id: string;
+  sku: string;
+  color: string | null;
+  size: string | null;
+  weight: string;
+  price: any; // Decimal from Prisma
+  images: VariantImage[];
+}
+
+export interface GetAllProductsResponse {
+  id: string;
+  name: string;
+  producer: string | null;
+  isActive: boolean;
+  variants: GetAllProductsVariantResponse[];
+  categories: {
+    category: {
+      name: string;
+    };
+  }[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UpdateProductVariantInput {
+  variantId: string;
+  sku?: string;
+  color?: string | null;
+  size?: string | null;
+  weight?: string;
+  price?: number;
+}
+
+export interface UpdateProductInput {
+  productId: string;
+  name?: string;
+  producer?: string | null;
+  isActive?: boolean;
+  variants?: UpdateProductVariantInput[];
+}
+
+export interface UpdateProductResponse {
+  id: string;
+  name: string;
+  producer: string | null;
+  isActive: boolean;
+  updatedAt: Date;
+}
+
+export interface DeleteProductResponse {
+  id: string;
+  message: string;
+  deletedAt: Date;
+}
+
+export interface GetProductByIdResponse {
+  id: string;
+  name: string;
+  producer: string | null;
+  isActive: boolean;
+  deletedAt: Date | null;
 }

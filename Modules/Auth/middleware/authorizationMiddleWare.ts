@@ -6,7 +6,8 @@ import { token,UserRole } from "../types/authTypes.js";
 export const authorize = (allowedRoles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req as Request & { user?: token }).user;
-
+    console.log(`USER : ${user}`);
+    
     if (!user) {
       return next(new AppError("Not authenticated", 401));
     }

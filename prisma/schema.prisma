@@ -99,7 +99,7 @@ model Product {
   name      String
   producer  String?
   isActive  Boolean          @default(true)
-
+  deletedAt DateTime?
   variants  ProductVariant[]
   categories ProductCategory[]
 
