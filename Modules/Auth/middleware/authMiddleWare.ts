@@ -14,6 +14,7 @@ export const authenticate = async (
   if (!accessTokenSecretKey)
     throw new Error("ACCESS TOKEN SECRET IS UNDEFINED");
   const authHeader = req.headers.authorization;
+  
   if (!authHeader || !authHeader.startsWith("Bearer "))
     return next(new AppError("Not Authenticated", 401));
   const token = authHeader.split(" ")[1];

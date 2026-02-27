@@ -166,4 +166,8 @@ export class InventoryService {
     );
     return inventories;
   };
+  getProductVariantStock=async(variantId:string,db=prisma):Promise<getProductVariantStockFromInventoryResponse[]>=>{
+    const stocks=await this.inventoryRepo.getProductVariant(variantId,db);
+    return stocks;
+  }
 }

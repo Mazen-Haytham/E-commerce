@@ -12,6 +12,7 @@ import {
   updateProductVariantStockLevel,
 } from "../types/types.js";
 import { Repo } from "./repo.js";
+import { prisma } from "../../../src/shared/prisma.js";
 
 export class PrismaInventory implements Repo {
   async getAllInventories(
@@ -161,4 +162,26 @@ export class PrismaInventory implements Repo {
       });
     return inv;
   }
+  getProductVariant = async (
+    variantId: string,
+    db: PrismaClient,
+  ): Promise<getProductVariantStockFromInventoryResponse[]> => {
+    const stocks: getProductVariantStockFromInventoryResponse[] =
+      await db.productStock.findMany({
+        where: {
+          productVariantId: variantId,
+        },
+        select: {
+          productVariantId: true,
+          inventoryId: true,
+          stockLevel: true,
+          inventory: {
+            select: {
+              location: true,
+            },
+          },
+        },
+      });
+    return stocks;
+  };
 }

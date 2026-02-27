@@ -1,0 +1,126 @@
+import { ProductRepo } from "../repo/Repo";
+import {
+  AddProductInput,
+  AddProductResponse,
+  GetAllProductsResponse,
+  UpdateProductInput,
+  UpdateProductResponse,
+  DeleteProductResponse,
+} from "../types/types";
+import { prisma } from "../../../../src/shared/prisma";
+import { PrismaClient } from "@prisma/client/extension";
+import { addProductVariantInInventoryInput } from "../../../Inventory/types/types";
+import { InventoryApi } from "../../../Inventory/Api/InvApi";
+import { AppError } from "../../../../src/utils/AppError";
+
+export class ProductService {
+  constructor(
+    private readonly productRepo: ProductRepo,
+    private readonly inventoryApi: InventoryApi,
+  ) {}
+
+  getAllProducts = async (): Promise<GetAllProductsResponse[]> => {
+    const products = await this.productRepo.getAllProducts(prisma);
+
+    // Validation: Ensure products exist
+    if (!products || products.length === 0) {
+      throw new AppError("No products found", 404);
+    }
+
+    // Validation: Filter only active products with variants
+    const validProducts = products.filter((product) => {
+      if (!product.isActive) {
+        return false;
+      }
+      if (!product.variants || product.variants.length === 0) {
+        return false;
+      }
+      return true;
+    });
+
+    // Validation: Ensure at least one valid product exists
+    if (validProducts.length === 0) {
+      throw new AppError("No active products with variants found", 404);
+    }
+
+    return validProducts;
+  };
+
+  addProduct = async (input: AddProductInput): Promise<AddProductResponse> => {
+    return await prisma.$transaction(async (tx) => {
+      // Add product to database
+      const product: AddProductResponse = await this.productRepo.addProduct(
+        input,
+        tx as PrismaClient,
+      );
+
+      // Map product variants to inventory input
+      const inventoryInputs: addProductVariantInInventoryInput[] = [];
+
+      for (let i = 0; i < product.variants.length; i++) {
+        const variant = product.variants[i];
+        const inventoriesFromInput = input.variants[i].inventories;
+
+        // Create inventory entries for each variant
+        for (const inventory of inventoriesFromInput) {
+          inventoryInputs.push({
+            productVariantId: variant.id,
+            inventoryId: inventory.id,
+            stockLevel: inventory.stockLevel,
+            restockAlert: inventory.restock,
+          });
+        }
+      }
+
+      // Add variants to inventory if there are inventory entries
+      if (inventoryInputs.length > 0) {
+        await this.inventoryApi.addProductVariantInInventory(inventoryInputs);
+      }
+
+      return product;
+    });
+  };
+
+  updateProduct = async (
+    input: UpdateProductInput,
+  ): Promise<UpdateProductResponse> => {
+    // Validation: Check if product exists and is not deleted
+    const existingProduct = await prisma.product.findUnique({
+      where: { id: input.productId },
+    });
+
+    if (!existingProduct || existingProduct.deletedAt !== null) {
+      throw new AppError("Product not found or has been deleted", 404);
+    }
+
+    // Validation: Ensure at least one field is provided for update
+    if (
+      input.name === undefined &&
+      input.producer === undefined &&
+      input.isActive === undefined &&
+      (!input.variants || input.variants.length === 0)
+    ) {
+      throw new AppError("At least one field must be provided for update", 400);
+    }
+
+    return await this.productRepo.updateProduct(input, prisma);
+  };
+
+  deleteProduct = async (productId: string): Promise<DeleteProductResponse> => {
+    // Validation: Check if product exists and is not already deleted
+    const existingProduct = await this.productRepo.getProductById(productId);
+
+    if (!existingProduct) {
+      throw new AppError("Product not found", 404);
+    }
+
+    if (existingProduct.deletedAt !== null) {
+      throw new AppError("Product is already deleted", 410);
+    }
+
+    return await this.productRepo.deleteProduct(
+      productId,
+      prisma as unknown as PrismaClient,
+    );
+  };
+}
