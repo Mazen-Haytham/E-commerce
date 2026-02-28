@@ -103,7 +103,7 @@ export class UserService {
     if (!data.email || !data.password) {
       throw new AppError("Email and password are required", 400);
     }
-    
+
     const user = await this.findUserByEmail(data.email);
     if (user) throw new AppError("User Already Exists With That Email", 409);
     const password = await bcrypt.hash(data.password, 12);
@@ -111,7 +111,7 @@ export class UserService {
       ...data,
       password,
     });
-    
+
     return UserMapper.createUserDTO(newUser);
   };
   findUserById = async (userId: string) => {
@@ -162,5 +162,55 @@ export class UserService {
     if (Object.keys(dto).length === 1 && !dto.profile)
       throw new AppError("There Is No Data To Update The User With", 400);
     return dto;
+  };
+
+  /* Cart service methods */
+  getCart = async (userId: string) => {
+    const cart = await this.userRepo.getCart(userId);
+    return cart;
+  };
+
+  addToCart = async (
+    userId: string,
+    productVariantId: string,
+    quantity: number,
+  ) => {
+    if (!productVariantId || quantity <= 0)
+      throw new AppError("Invalid cart item data", 400);
+    const added = await this.userRepo.addCartItem(
+      userId,
+      productVariantId,
+      quantity,
+    );
+    return added;
+  };
+
+  updateCartItem = async (
+    userId: string,
+    productVariantId: string,
+    quantity: number,
+  ) => {
+    if (quantity < 0) throw new AppError("Invalid quantity", 400);
+    const updated = await this.userRepo.updateCartItem(
+      userId,
+      productVariantId,
+      quantity,
+    );
+    if (!updated) throw new AppError("Cart item not found", 404);
+    return updated;
+  };
+
+  removeCartItem = async (userId: string, productVariantId: string) => {
+    const removed = await this.userRepo.removeCartItem(
+      userId,
+      productVariantId,
+    );
+    if (!removed) throw new AppError("Cart item not found", 404);
+    return removed;
+  };
+
+  clearCart = async (userId: string) => {
+    const res = await this.userRepo.clearCart(userId);
+    return res;
   };
 }

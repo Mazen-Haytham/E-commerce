@@ -45,7 +45,7 @@ export class PrismaUserRepo implements UserRepo {
         lastName: true,
         password: true,
         phone: true,
-        tokenVersion:true,
+        tokenVersion: true,
         profile: {
           select: {
             profilePic: true,
@@ -191,5 +191,96 @@ export class PrismaUserRepo implements UserRepo {
       },
     });
     return deactivatedUser;
+  };
+
+  // CART OPERATIONS
+  getCart = async (userId: string) => {
+    const cart = await prisma.cart.findUnique({
+      where: { userId: userId },
+      include: {
+        items: {
+          include: {
+            productVariant: true,
+          },
+        },
+      },
+    });
+    return cart;
+  };
+
+  addCartItem = async (
+    userId: string,
+    productVariantId: string,
+    quantity: number,
+  ) => {
+    let cart = await prisma.cart.findUnique({ where: { userId } });
+    if (!cart) {
+      cart = await prisma.cart.create({ data: { userId } });
+    }
+
+    const existingItem = await prisma.cartItem.findFirst({
+      where: { cartId: cart.id, productVariantId },
+    });
+
+    if (existingItem) {
+      const updated = await prisma.cartItem.update({
+        where: { id: existingItem.id },
+        data: { quantity: existingItem.quantity + quantity },
+      });
+      return updated;
+    }
+
+    const variant = await prisma.productVariant.findUnique({
+      where: { id: productVariantId },
+    });
+    const unitPrice = variant ? variant.price : 0;
+
+    const created = await prisma.cartItem.create({
+      data: {
+        cartId: cart.id,
+        productVariantId,
+        quantity,
+        unitPrice,
+      },
+    });
+    return created;
+  };
+
+  updateCartItem = async (
+    userId: string,
+    productVariantId: string,
+    quantity: number,
+  ) => {
+    const cart = await prisma.cart.findUnique({ where: { userId } });
+    if (!cart) return null;
+    const item = await prisma.cartItem.findFirst({
+      where: { cartId: cart.id, productVariantId },
+    });
+    if (!item) return null;
+    const updated = await prisma.cartItem.update({
+      where: { id: item.id },
+      data: { quantity },
+    });
+    return updated;
+  };
+
+  removeCartItem = async (userId: string, productVariantId: string) => {
+    const cart = await prisma.cart.findUnique({ where: { userId } });
+    if (!cart) return null;
+    const item = await prisma.cartItem.findFirst({
+      where: { cartId: cart.id, productVariantId },
+    });
+    if (!item) return null;
+    const deleted = await prisma.cartItem.delete({ where: { id: item.id } });
+    return deleted;
+  };
+
+  clearCart = async (userId: string) => {
+    const cart = await prisma.cart.findUnique({ where: { userId } });
+    if (!cart) return null;
+    const result = await prisma.cartItem.deleteMany({
+      where: { cartId: cart.id },
+    });
+    return result;
   };
 }

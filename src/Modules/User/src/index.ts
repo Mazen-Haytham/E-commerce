@@ -20,6 +20,36 @@ router.get(
   authorize(["ADMIN"]),
   controller.getUserByEmail,
 );
+router.get(
+  "/:id/cart",
+  authenticate,
+  authorize(["ADMIN", "CUSTOMER"]),
+  controller.getCart,
+);
+router.post(
+  "/:id/cart/items",
+  authenticate,
+  authorize(["ADMIN", "CUSTOMER"]),
+  controller.addCartItem,
+);
+router.patch(
+  "/:id/cart/items/:variantId",
+  authenticate,
+  authorize(["ADMIN", "CUSTOMER"]),
+  controller.updateCartItem,
+);
+router.delete(
+  "/:id/cart/items/:variantId",
+  authenticate,
+  authorize(["ADMIN", "CUSTOMER"]),
+  controller.removeCartItem,
+);
+router.delete(
+  "/:id/cart",
+  authenticate,
+  authorize(["ADMIN", "CUSTOMER"]),
+  controller.clearCart,
+);
 router.patch(
   "/:id",
   authenticate,

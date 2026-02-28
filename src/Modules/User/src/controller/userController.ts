@@ -34,11 +34,7 @@ export class UserController {
       next(err);
     }
   };
-  updateUser = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  updateUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id as string;
       console.log(id);
@@ -52,11 +48,7 @@ export class UserController {
       next(err);
     }
   };
-  deactivateUser = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  deactivateUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id as string;
       const deactivatedUserId: string | undefined =
@@ -70,11 +62,7 @@ export class UserController {
       next(err);
     }
   };
-  getUserById = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  getUserById = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id as string;
       const user = await this.userService.findUserById(id);
@@ -87,11 +75,7 @@ export class UserController {
       next(err);
     }
   };
-  getUserByEmail = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  getUserByEmail = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const email = req.params.email as string;
       console.log(email);
@@ -101,6 +85,69 @@ export class UserController {
         status: "Success",
         data: user,
       });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /* Cart handlers */
+  getCart = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id as string;
+      const cart = await this.userService.getCart(id);
+      return res.status(200).send({ status: "Success", data: cart });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  addCartItem = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id as string;
+      const { productVariantId, quantity } = req.body;
+      const item = await this.userService.addToCart(
+        id,
+        productVariantId,
+        quantity,
+      );
+      return res.status(200).send({ status: "Success", data: item });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  updateCartItem = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id as string;
+      const variantId = req.params.variantId as string;
+      const { quantity } = req.body;
+      const item = await this.userService.updateCartItem(
+        id,
+        variantId,
+        quantity,
+      );
+      return res.status(200).send({ status: "Success", data: item });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  removeCartItem = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id as string;
+      const variantId = req.params.variantId as string;
+      const item = await this.userService.removeCartItem(id, variantId);
+      return res.status(200).send({ status: "Success", data: item });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  clearCart = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id as string;
+      const result = await this.userService.clearCart(id);
+      return res.status(200).send({ status: "Success", data: result });
     } catch (err) {
       next(err);
     }
