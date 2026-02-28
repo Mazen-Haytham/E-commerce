@@ -1,0 +1,1311 @@
+Base URL: http://localhost:3000/api (or your configured server URL)
+
+=====================================================================================================
+AUTHENTICATION ENDPOINTS - Base Path: /auth
+=====================================================================================================
+
+1.1 Login
+
+HTTP Method: POST
+Endpoint: /auth/login
+Description: Authenticates a user with email and password. Returns an accessToken and sets a refreshToken cookie.
+Authentication: None (public endpoint)
+
+Request Body (JSON):
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+
+Response: 200 OK
+Returns:
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+
+Cookies:
+refreshToken=<JWT refresh token>; HttpOnly; Path=/api/auth/refresh; Max-Age=604800
+
+Example cURL:
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123"}' \
+  -c cookies.txt
+
+-----------------------------------------------------------------------------------------------------
+
+1.2 Refresh Token
+
+HTTP Method: POST
+Endpoint: /auth/refresh
+Description: Generates a new access token using the refreshToken stored in the HttpOnly cookie.
+Authentication: None (cookie-based)
+
+Request Parameters: None
+Request Body: None
+
+Response: 200 OK
+Returns:
+{
+  "accessToken": "newAccessTokenHere"
+}
+
+Example cURL:
+curl -X POST http://localhost:3000/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -b cookies.txt
+
+=====================================================================================================
+PRODUCT CATALOG ENDPOINTS - Base Path: /catalog
+=====================================================================================================
+
+2.1 Get All Products
+
+HTTP Method: GET
+Endpoint: /catalog/
+Description: Retrieves all active products with their variants and details.
+Authentication: Required (Bearer Token) - Roles: ADMIN, USER
+
+Request Parameters: None
+Request Body: None
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": [
+    {
+      "id": "product-uuid",
+      "name": "Product Name",
+      "description": "Product description",
+      "variants": [
+        {
+          "id": "variant-uuid",
+          "name": "Variant Name",
+          "sku": "SKU-001",
+          "price": 29.99
+        }
+      ],
+      "categories": ["category-id-1", "category-id-2"]
+    }
+  ]
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/catalog/ \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+2.2 Add Product
+
+HTTP Method: POST
+Endpoint: /catalog/
+Description: Creates a new product with variants and associates it with categories.
+Authentication: Required (Bearer Token) - Roles: ADMIN, SUPPLIER
+
+Request Body (JSON):
+{
+  "name": "New Product",
+  "description": "Product description",
+  "variants": [
+    {
+      "name": "Size M",
+      "sku": "PROD-001-M",
+      "price": 49.99,
+      "quantity": 100,
+      "images": ["image-url-1", "image-url-2"]
+    },
+    {
+      "name": "Size L",
+      "sku": "PROD-001-L",
+      "price": 54.99,
+      "quantity": 80,
+      "images": ["image-url-3"]
+    }
+  ],
+  "categories": ["category-uuid-1", "category-uuid-2"]
+}
+
+Response: 201 Created
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "product-uuid",
+    "name": "New Product",
+    "description": "Product description",
+    "variants": [
+      {
+        "id": "variant-uuid-1",
+        "name": "Size M",
+        "sku": "PROD-001-M",
+        "price": 49.99
+      },
+      {
+        "id": "variant-uuid-2",
+        "name": "Size L",
+        "sku": "PROD-001-L",
+        "price": 54.99
+      }
+    ]
+  }
+}
+
+Example cURL:
+curl -X POST http://localhost:3000/api/catalog/ \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d @product-payload.json
+
+-----------------------------------------------------------------------------------------------------
+
+2.3 Update Product
+
+HTTP Method: PATCH
+Endpoint: /catalog/:id
+Description: Updates an existing product and/or its variants.
+Authentication: Required (Bearer Token) - Roles: ADMIN, SUPPLIER
+
+Request Parameters:
+- id (string): The product UUID
+
+Request Body (JSON):
+{
+  "name": "Updated Product Name",
+  "description": "Updated description",
+  "variants": [
+    {
+      "id": "variant-uuid-1",
+      "name": "Size M - Updated",
+      "price": 54.99
+    }
+  ],
+  "categories": ["category-uuid-1"]
+}
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "product-uuid",
+    "name": "Updated Product Name",
+    "description": "Updated description",
+    "variants": [...]
+  }
+}
+
+Example cURL:
+curl -X PATCH http://localhost:3000/api/catalog/product-uuid \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Updated Product Name"}'
+
+-----------------------------------------------------------------------------------------------------
+
+2.4 Delete Product
+
+HTTP Method: DELETE
+Endpoint: /catalog/:id
+Description: Soft deletes a product (marks as inactive).
+Authentication: Required (Bearer Token) - Roles: ADMIN, SUPPLIER
+
+Request Parameters:
+- id (string): The product UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "message": "Product deleted successfully",
+    "productId": "product-uuid"
+  }
+}
+
+Example cURL:
+curl -X DELETE http://localhost:3000/api/catalog/product-uuid \
+  -H "Authorization: Bearer your-access-token"
+
+=====================================================================================================
+INVENTORY ENDPOINTS - Base Path: /inventory
+=====================================================================================================
+
+3.1 Get All Inventories
+
+HTTP Method: GET
+Endpoint: /inventory/
+Description: Retrieves all inventory locations.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": [
+    {
+      "id": "inventory-uuid",
+      "name": "Warehouse Chicago",
+      "location": "Chicago, IL",
+      "isActive": true
+    }
+  ]
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/inventory/ \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+3.2 Get Inventory by ID
+
+HTTP Method: GET
+Endpoint: /inventory/:id
+Description: Retrieves a specific inventory location by ID.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Parameters:
+- id (string): The inventory UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "inventory-uuid",
+    "name": "Warehouse Chicago",
+    "location": "Chicago, IL",
+    "isActive": true
+  }
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/inventory/inventory-uuid \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+3.3 Add Inventory
+
+HTTP Method: POST
+Endpoint: /inventory/
+Description: Creates a new inventory location.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Body (JSON):
+{
+  "name": "Warehouse Denver",
+  "location": "Denver, CO"
+}
+
+Response: 201 Created
+Returns:
+{
+  "status": "success",
+  "data": {
+    "id": "inventory-uuid",
+    "name": "Warehouse Denver",
+    "location": "Denver, CO",
+    "isActive": true
+  }
+}
+
+Example cURL:
+curl -X POST http://localhost:3000/api/inventory/ \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Warehouse Denver","location":"Denver, CO"}'
+
+-----------------------------------------------------------------------------------------------------
+
+3.4 Update Inventory
+
+HTTP Method: PATCH
+Endpoint: /inventory/:id
+Description: Updates an inventory location.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Parameters:
+- id (string): The inventory UUID
+
+Request Body (JSON):
+{
+  "name": "Warehouse Denver Updated",
+  "location": "Denver, CO"
+}
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "inventory-uuid",
+    "name": "Warehouse Denver Updated",
+    "location": "Denver, CO"
+  }
+}
+
+Example cURL:
+curl -X PATCH http://localhost:3000/api/inventory/inventory-uuid \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Warehouse Denver Updated"}'
+
+-----------------------------------------------------------------------------------------------------
+
+3.5 Update Stock Level
+
+HTTP Method: PATCH
+Endpoint: /inventory/stock/:id
+Description: Updates the stock level for a product variant in an inventory location.
+Authentication: Required (Bearer Token) - Roles: ADMIN, SUPPLIER
+
+Request Parameters:
+- id (string): The inventory UUID
+
+Request Body (JSON):
+{
+  "productVariantId": "variant-uuid",
+  "quantity": 50,
+  "operation": "set" // or "add", "subtract"
+}
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "inventoryId": "inventory-uuid",
+    "variantId": "variant-uuid",
+    "quantity": 50
+  }
+}
+
+Example cURL:
+curl -X PATCH http://localhost:3000/api/inventory/stock/inventory-uuid \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"productVariantId":"variant-uuid","quantity":50,"operation":"set"}'
+
+-----------------------------------------------------------------------------------------------------
+
+3.6 Deactivate Inventory
+
+HTTP Method: DELETE
+Endpoint: /inventory/:id
+Description: Deactivates an inventory location.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Parameters:
+- id (string): The inventory UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "message": "Inventory Is Deleted Successfully"
+}
+
+Example cURL:
+curl -X DELETE http://localhost:3000/api/inventory/inventory-uuid \
+  -H "Authorization: Bearer your-access-token"
+
+=====================================================================================================
+USER ENDPOINTS - Base Path: /users
+=====================================================================================================
+
+4.1 Create User
+
+HTTP Method: POST
+Endpoint: /users/
+Description: Creates a new user account.
+Authentication: None (public endpoint)
+
+Request Body (JSON):
+{
+  "email": "newuser@example.com",
+  "firstName": "John",
+  "lastName": "Doe",
+  "password": "SecurePassword123!",
+  "phone": "+1234567890",
+  "profilePic": "https://example.com/profile.jpg"
+}
+
+Response: 201 Created
+Returns:
+{
+  "status": "Success",
+  "message": "User Created SuccessFully",
+  "data": {
+    "id": "user-uuid",
+    "email": "newuser@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "phone": "+1234567890",
+    "profilePic": "https://example.com/profile.jpg"
+  }
+}
+
+Example cURL:
+curl -X POST http://localhost:3000/api/users/ \
+  -H "Content-Type: application/json" \
+  -d '{"email":"newuser@example.com","firstName":"John","lastName":"Doe","password":"SecurePassword123!","phone":"+1234567890"}'
+
+-----------------------------------------------------------------------------------------------------
+
+4.2 Get All Users
+
+HTTP Method: GET
+Endpoint: /users/
+Description: Retrieves all users. Admin only.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": [
+    {
+      "id": "user-uuid-1",
+      "email": "user1@example.com",
+      "firstName": "John",
+      "lastName": "Doe"
+    },
+    {
+      "id": "user-uuid-2",
+      "email": "user2@example.com",
+      "firstName": "Jane",
+      "lastName": "Smith"
+    }
+  ]
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/users/ \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+4.3 Get User by ID
+
+HTTP Method: GET
+Endpoint: /users/:id
+Description: Retrieves a specific user by ID.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Parameters:
+- id (string): The user UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "user-uuid",
+    "email": "user@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "phone": "+1234567890",
+    "profilePic": "https://example.com/profile.jpg"
+  }
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/users/user-uuid \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+4.4 Get User by Email
+
+HTTP Method: GET
+Endpoint: /users/email/:email
+Description: Retrieves a user by email address.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Parameters:
+- email (string): The user email address
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "user-uuid",
+    "email": "user@example.com",
+    "firstName": "John",
+    "lastName": "Doe"
+  }
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/users/email/user@example.com \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+4.5 Update User
+
+HTTP Method: PATCH
+Endpoint: /users/:id
+Description: Updates user information.
+Authentication: Required (Bearer Token) - Roles: ADMIN, CUSTOMER
+
+Request Parameters:
+- id (string): The user UUID
+
+Request Body (JSON):
+{
+  "firstName": "Jonathan",
+  "lastName": "Doe Updated",
+  "phone": "+9876543210",
+  "profilePic": "https://example.com/new-profile.jpg"
+}
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "message": "User Data Is Updated Successfully",
+  "data": {
+    "id": "user-uuid",
+    "email": "user@example.com",
+    "firstName": "Jonathan",
+    "lastName": "Doe Updated",
+    "phone": "+9876543210",
+    "profilePic": "https://example.com/new-profile.jpg"
+  }
+}
+
+Example cURL:
+curl -X PATCH http://localhost:3000/api/users/user-uuid \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"firstName":"Jonathan","lastName":"Doe Updated"}'
+
+-----------------------------------------------------------------------------------------------------
+
+4.6 Deactivate User
+
+HTTP Method: DELETE
+Endpoint: /users/:id
+Description: Deactivates a user account.
+Authentication: Required (Bearer Token) - Roles: ADMIN, CUSTOMER
+
+Request Parameters:
+- id (string): The user UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "message": "User Deleted Successfully"
+}
+
+Example cURL:
+curl -X DELETE http://localhost:3000/api/users/user-uuid \
+  -H "Authorization: Bearer your-access-token"
+
+=====================================================================================================
+SHOPPING CART ENDPOINTS - Base Path: /users/:id/cart
+=====================================================================================================
+
+5.1 Get Cart
+
+HTTP Method: GET
+Endpoint: /users/:id/cart
+Description: Retrieves the shopping cart for a user.
+Authentication: Required (Bearer Token) - Roles: ADMIN, CUSTOMER
+
+Request Parameters:
+- id (string): The user UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "userId": "user-uuid",
+    "items": [
+      {
+        "productVariantId": "variant-uuid-1",
+        "quantity": 2,
+        "price": 49.99,
+        "subtotal": 99.98
+      },
+      {
+        "productVariantId": "variant-uuid-2",
+        "quantity": 1,
+        "price": 29.99,
+        "subtotal": 29.99
+      }
+    ],
+    "totalPrice": 129.97
+  }
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/users/user-uuid/cart \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+5.2 Add Item to Cart
+
+HTTP Method: POST
+Endpoint: /users/:id/cart/items
+Description: Adds a product variant to the user's cart.
+Authentication: Required (Bearer Token) - Roles: ADMIN, CUSTOMER
+
+Request Parameters:
+- id (string): The user UUID
+
+Request Body (JSON):
+{
+  "productVariantId": "variant-uuid",
+  "quantity": 2
+}
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "userId": "user-uuid",
+    "productVariantId": "variant-uuid",
+    "quantity": 2,
+    "price": 49.99,
+    "subtotal": 99.98
+  }
+}
+
+Example cURL:
+curl -X POST http://localhost:3000/api/users/user-uuid/cart/items \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"productVariantId":"variant-uuid","quantity":2}'
+
+-----------------------------------------------------------------------------------------------------
+
+5.3 Update Cart Item
+
+HTTP Method: PATCH
+Endpoint: /users/:id/cart/items/:variantId
+Description: Updates the quantity of an item in the cart.
+Authentication: Required (Bearer Token) - Roles: ADMIN, CUSTOMER
+
+Request Parameters:
+- id (string): The user UUID
+- variantId (string): The product variant UUID
+
+Request Body (JSON):
+{
+  "quantity": 5
+}
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "userId": "user-uuid",
+    "productVariantId": "variant-uuid",
+    "quantity": 5,
+    "price": 49.99,
+    "subtotal": 249.95
+  }
+}
+
+Example cURL:
+curl -X PATCH http://localhost:3000/api/users/user-uuid/cart/items/variant-uuid \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"quantity":5}'
+
+-----------------------------------------------------------------------------------------------------
+
+5.4 Remove Item from Cart
+
+HTTP Method: DELETE
+Endpoint: /users/:id/cart/items/:variantId
+Description: Removes a product variant from the user's cart.
+Authentication: Required (Bearer Token) - Roles: ADMIN, CUSTOMER
+
+Request Parameters:
+- id (string): The user UUID
+- variantId (string): The product variant UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "message": "Item removed from cart"
+  }
+}
+
+Example cURL:
+curl -X DELETE http://localhost:3000/api/users/user-uuid/cart/items/variant-uuid \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+5.5 Clear Cart
+
+HTTP Method: DELETE
+Endpoint: /users/:id/cart
+Description: Clears all items from the user's cart.
+Authentication: Required (Bearer Token) - Roles: ADMIN, CUSTOMER
+
+Request Parameters:
+- id (string): The user UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "message": "Cart cleared successfully"
+  }
+}
+
+Example cURL:
+curl -X DELETE http://localhost:3000/api/users/user-uuid/cart \
+  -H "Authorization: Bearer your-access-token"
+
+=====================================================================================================
+ORDER ENDPOINTS - Base Path: /orders
+=====================================================================================================
+
+6.1 Get All Orders
+
+HTTP Method: GET
+Endpoint: /orders/
+Description: Retrieves all orders. Admin only.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": [
+    {
+      "id": "order-uuid-1",
+      "userId": "user-uuid",
+      "items": [{...}],
+      "status": "pending",
+      "totalPrice": 129.97,
+      "createdAt": "2026-02-28T10:30:00Z"
+    },
+    {
+      "id": "order-uuid-2",
+      "userId": "user-uuid",
+      "items": [{...}],
+      "status": "shipped",
+      "totalPrice": 89.99,
+      "createdAt": "2026-02-27T15:45:00Z"
+    }
+  ]
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/orders/ \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+6.2 Create Order
+
+HTTP Method: POST
+Endpoint: /orders/
+Description: Creates a new order from user's cart items.
+Authentication: Required (Bearer Token)
+
+Request Body (JSON):
+{
+  "userId": "user-uuid",
+  "items": [
+    {
+      "productVariantId": "variant-uuid-1",
+      "quantity": 2,
+      "price": 49.99
+    },
+    {
+      "productVariantId": "variant-uuid-2",
+      "quantity": 1,
+      "price": 29.99
+    }
+  ],
+  "shippingAddress": "123 Main St, City, State 12345",
+  "notes": "Please gift wrap"
+}
+
+Response: 201 Created
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "order-uuid",
+    "userId": "user-uuid",
+    "items": [{...}],
+    "status": "pending",
+    "totalPrice": 129.97,
+    "shippingAddress": "123 Main St, City, State 12345",
+    "createdAt": "2026-02-28T12:00:00Z"
+  }
+}
+
+Example cURL:
+curl -X POST http://localhost:3000/api/orders/ \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d @order-payload.json
+
+-----------------------------------------------------------------------------------------------------
+
+6.3 Get Order by ID
+
+HTTP Method: GET
+Endpoint: /orders/:orderId
+Description: Retrieves a specific order by ID.
+Authentication: Required (Bearer Token)
+
+Request Parameters:
+- orderId (string): The order UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "order-uuid",
+    "userId": "user-uuid",
+    "items": [{...}],
+    "status": "pending",
+    "totalPrice": 129.97,
+    "shippingAddress": "123 Main St, City, State 12345",
+    "createdAt": "2026-02-28T12:00:00Z"
+  }
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/orders/order-uuid \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+6.4 Get Orders by User ID
+
+HTTP Method: GET
+Endpoint: /orders/user/:userId
+Description: Retrieves all orders for a specific user.
+Authentication: Required (Bearer Token)
+
+Request Parameters:
+- userId (string): The user UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": [
+    {
+      "id": "order-uuid-1",
+      "userId": "user-uuid",
+      "items": [{...}],
+      "status": "completed",
+      "totalPrice": 129.97,
+      "createdAt": "2026-02-28T12:00:00Z"
+    }
+  ]
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/orders/user/user-uuid \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+6.5 Update Order Status
+
+HTTP Method: PATCH
+Endpoint: /orders/:orderId/status
+Description: Updates the status of an order.
+Authentication: Required (Bearer Token)
+
+Request Parameters:
+- orderId (string): The order UUID
+
+Request Body (JSON):
+{
+  "status": "shipped"
+}
+
+Valid status values: pending, confirmed, packed, shipped, delivered, cancelled
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "order-uuid",
+    "userId": "user-uuid",
+    "status": "shipped",
+    "updatedAt": "2026-02-28T14:30:00Z"
+  }
+}
+
+Example cURL:
+curl -X PATCH http://localhost:3000/api/orders/order-uuid/status \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"shipped"}'
+
+-----------------------------------------------------------------------------------------------------
+
+6.6 Delete Order
+
+HTTP Method: DELETE
+Endpoint: /orders/:orderId
+Description: Deletes an order.
+Authentication: Required (Bearer Token)
+
+Request Parameters:
+- orderId (string): The order UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "message": "Order deleted successfully"
+}
+
+Example cURL:
+curl -X DELETE http://localhost:3000/api/orders/order-uuid \
+  -H "Authorization: Bearer your-access-token"
+
+=====================================================================================================
+PAYMENT ENDPOINTS - Base Path: /orders/:orderId/payments
+=====================================================================================================
+
+7.1 Create Payment
+
+HTTP Method: POST
+Endpoint: /orders/:orderId/payments
+Description: Creates a payment record for an order.
+Authentication: Required (Bearer Token)
+
+Request Parameters:
+- orderId (string): The order UUID
+
+Request Body (JSON):
+{
+  "amount": 129.97,
+  "paymentMethod": "credit_card",
+  "transactionId": "txn_123456789",
+  "status": "completed"
+}
+
+Response: 201 Created
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "payment-uuid",
+    "orderId": "order-uuid",
+    "amount": 129.97,
+    "paymentMethod": "credit_card",
+    "status": "completed",
+    "createdAt": "2026-02-28T12:30:00Z"
+  }
+}
+
+Example cURL:
+curl -X POST http://localhost:3000/api/orders/order-uuid/payments \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"amount":129.97,"paymentMethod":"credit_card","transactionId":"txn_123456789","status":"completed"}'
+
+-----------------------------------------------------------------------------------------------------
+
+7.2 Get Payments by Order ID
+
+HTTP Method: GET
+Endpoint: /orders/:orderId/payments
+Description: Retrieves all payment records for an order.
+Authentication: Required (Bearer Token)
+
+Request Parameters:
+- orderId (string): The order UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": [
+    {
+      "id": "payment-uuid-1",
+      "orderId": "order-uuid",
+      "amount": 129.97,
+      "paymentMethod": "credit_card",
+      "status": "completed",
+      "createdAt": "2026-02-28T12:30:00Z"
+    }
+  ]
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/orders/order-uuid/payments \
+  -H "Authorization: Bearer your-access-token"
+
+=====================================================================================================
+PRICING & DISCOUNT ENDPOINTS - Base Path: /orders
+=====================================================================================================
+
+8.1 Get Pricing by Product ID
+
+HTTP Method: GET
+Endpoint: /orders/pricing/product/:productId
+Description: Retrieves pricing information for a product.
+Authentication: None (public endpoint)
+
+Request Parameters:
+- productId (string): The product UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "productId": "product-uuid",
+    "productName": "Product Name",
+    "variants": [
+      {
+        "variantId": "variant-uuid-1",
+        "name": "Size M",
+        "basePrice": 49.99,
+        "discountApplied": false,
+        "finalPrice": 49.99
+      },
+      {
+        "variantId": "variant-uuid-2",
+        "name": "Size L",
+        "basePrice": 54.99,
+        "discountApplied": false,
+        "finalPrice": 54.99
+      }
+    ]
+  }
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/orders/pricing/product/product-uuid
+
+-----------------------------------------------------------------------------------------------------
+
+8.2 Get Pricing by Product Variant ID
+
+HTTP Method: GET
+Endpoint: /orders/pricing/variant/:variantId
+Description: Retrieves pricing information for a specific product variant.
+Authentication: None (public endpoint)
+
+Request Parameters:
+- variantId (string): The product variant UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "variantId": "variant-uuid",
+    "productName": "Product Name",
+    "variantName": "Size M",
+    "basePrice": 49.99,
+    "discounts": [
+      {
+        "id": "discount-uuid",
+        "type": "percentage",
+        "value": 10,
+        "description": "10% off"
+      }
+    ],
+    "finalPrice": 44.99
+  }
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/orders/pricing/variant/variant-uuid
+
+-----------------------------------------------------------------------------------------------------
+
+8.3 Get Pricing by Category ID
+
+HTTP Method: GET
+Endpoint: /orders/pricing/category/:categoryId
+Description: Retrieves pricing information for all products in a category.
+Authentication: None (public endpoint)
+
+Request Parameters:
+- categoryId (string): The category UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "categoryId": "category-uuid",
+    "categoryName": "Electronics",
+    "products": [
+      {
+        "productId": "product-uuid-1",
+        "productName": "Product 1",
+        "variants": [
+          {
+            "variantId": "variant-uuid-1",
+            "basePrice": 99.99,
+            "finalPrice": 89.99
+          }
+        ]
+      }
+    ]
+  }
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/orders/pricing/category/category-uuid
+
+-----------------------------------------------------------------------------------------------------
+
+8.4 Create Variant Discount
+
+HTTP Method: POST
+Endpoint: /orders/discount/variant
+Description: Creates a discount for a specific product variant.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Body (JSON):
+{
+  "variantId": "variant-uuid",
+  "type": "percentage",
+  "value": 15,
+  "description": "Spring Sale - 15% off",
+  "startDate": "2026-03-01T00:00:00Z",
+  "endDate": "2026-03-31T23:59:59Z"
+}
+
+Discount types: percentage, fixed_amount
+
+Response: 201 Created
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "discount-uuid",
+    "variantId": "variant-uuid",
+    "type": "percentage",
+    "value": 15,
+    "description": "Spring Sale - 15% off",
+    "startDate": "2026-03-01T00:00:00Z",
+    "endDate": "2026-03-31T23:59:59Z",
+    "createdAt": "2026-02-28T10:00:00Z"
+  }
+}
+
+Example cURL:
+curl -X POST http://localhost:3000/api/orders/discount/variant \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"variantId":"variant-uuid","type":"percentage","value":15,"description":"Spring Sale - 15% off"}'
+
+-----------------------------------------------------------------------------------------------------
+
+8.5 Create Category Discount
+
+HTTP Method: POST
+Endpoint: /orders/discount/category
+Description: Creates a discount for all products in a category.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Body (JSON):
+{
+  "categoryId": "category-uuid",
+  "type": "percentage",
+  "value": 20,
+  "description": "Electronics Category - 20% off",
+  "startDate": "2026-03-01T00:00:00Z",
+  "endDate": "2026-03-31T23:59:59Z"
+}
+
+Response: 201 Created
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "discount-uuid",
+    "categoryId": "category-uuid",
+    "type": "percentage",
+    "value": 20,
+    "description": "Electronics Category - 20% off",
+    "startDate": "2026-03-01T00:00:00Z",
+    "endDate": "2026-03-31T23:59:59Z",
+    "createdAt": "2026-02-28T10:00:00Z"
+  }
+}
+
+Example cURL:
+curl -X POST http://localhost:3000/api/orders/discount/category \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"categoryId":"category-uuid","type":"percentage","value":20,"description":"Electronics Category - 20% off"}'
+
+=====================================================================================================
+ERROR RESPONSES
+=====================================================================================================
+
+All endpoints may return error responses in the following format:
+
+Response: 400/401/403/404/500
+Returns:
+{
+  "status": "Error",
+  "message": "Error description",
+  "data": {
+    "details": "Additional error information if available"
+  }
+}
+
+Common HTTP Status Codes:
+- 200: OK - Request succeeded
+- 201: Created - Resource successfully created
+- 400: Bad Request - Invalid request data
+- 401: Unauthorized - Missing or invalid authentication token
+- 403: Forbidden - Insufficient permissions for requested action
+- 404: Not Found - Resource not found
+- 500: Internal Server Error - Server error
+
+=====================================================================================================
+AUTHENTICATION NOTES
+=====================================================================================================
+
+1. Bearer Token:
+   - Include the accessToken obtained from /auth/login in the Authorization header
+   - Format: Authorization: Bearer <accessToken>
+
+2. Cookie-based Refresh:
+   - The refreshToken is stored as an HttpOnly cookie
+   - Include -b cookies.txt in cURL to automatically send cookies
+   - Or use browser which handles cookies automatically
+
+3. Role-based Access Control:
+   - ADMIN: Full access to all endpoints
+   - SUPPLIER: Can manage products and inventory stock
+   - CUSTOMER/USER: Can browse products, manage cart, and create orders
+   - Roles are checked per endpoint - authenticate first, then authorize
+
+4. Token Expiration:
+   - Access tokens have a limited lifetime
+   - Use /auth/refresh to obtain a new token when expired
+   - Refresh tokens are valid for 7 days  
