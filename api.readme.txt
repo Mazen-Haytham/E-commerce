@@ -75,18 +75,56 @@ Returns:
   "status": "Success",
   "data": [
     {
-      "id": "product-uuid",
-      "name": "Product Name",
-      "description": "Product description",
+      "id": "product-uuid-1",
+      "name": "Gaming Laptop",
+      "producer": "TechBrand",
+      "isActive": true,
       "variants": [
         {
-          "id": "variant-uuid",
-          "name": "Variant Name",
-          "sku": "SKU-001",
-          "price": 29.99
+          "id": "variant-uuid-1",
+          "sku": "LAPTOP-001-16GB",
+          "color": "Space Gray",
+          "size": "15.6 inch",
+          "weight": "1.8kg",
+          "price": 1299.99,
+          "images": [
+            {
+              "url": "https://example.com/laptop-gray-1.jpg",
+              "altText": "Gaming laptop space gray",
+              "isPrimary": true
+            }
+          ]
+        },
+        {
+          "id": "variant-uuid-2",
+          "sku": "LAPTOP-001-32GB",
+          "color": "Silver",
+          "size": "15.6 inch",
+          "weight": "1.8kg",
+          "price": 1599.99,
+          "images": [
+            {
+              "url": "https://example.com/laptop-silver-1.jpg",
+              "altText": "Gaming laptop silver",
+              "isPrimary": true
+            }
+          ]
         }
       ],
-      "categories": ["category-id-1", "category-id-2"]
+      "categories": [
+        {
+          "category": {
+            "name": "Electronics"
+          }
+        },
+        {
+          "category": {
+            "name": "Computers"
+          }
+        }
+      ],
+      "createdAt": "2026-02-28T10:00:00Z",
+      "updatedAt": "2026-02-28T10:00:00Z"
     }
   ]
 }
@@ -106,25 +144,63 @@ Authentication: Required (Bearer Token) - Roles: ADMIN, SUPPLIER
 
 Request Body (JSON):
 {
-  "name": "New Product",
-  "description": "Product description",
+  "name": "Gaming Laptop",
+  "producer": "TechBrand",
+  "categories": ["category-uuid-1", "category-uuid-2"],
   "variants": [
     {
-      "name": "Size M",
-      "sku": "PROD-001-M",
-      "price": 49.99,
-      "quantity": 100,
-      "images": ["image-url-1", "image-url-2"]
+      "sku": "LAPTOP-001-16GB",
+      "color": "Space Gray",
+      "size": "15.6 inch",
+      "weight": "1.8kg",
+      "price": 1299.99,
+      "images": [
+        {
+          "url": "https://example.com/laptop-gray-1.jpg",
+          "altText": "Gaming laptop space gray",
+          "isPrimary": true
+        },
+        {
+          "url": "https://example.com/laptop-gray-2.jpg",
+          "altText": "Gaming laptop space gray side view",
+          "isPrimary": false
+        }
+      ],
+      "inventories": [
+        {
+          "id": "inventory-uuid-1",
+          "stockLevel": 50,
+          "restock": 10
+        },
+        {
+          "id": "inventory-uuid-2",
+          "stockLevel": 30,
+          "restock": 5
+        }
+      ]
     },
     {
-      "name": "Size L",
-      "sku": "PROD-001-L",
-      "price": 54.99,
-      "quantity": 80,
-      "images": ["image-url-3"]
+      "sku": "LAPTOP-001-32GB",
+      "color": "Silver",
+      "size": "15.6 inch",
+      "weight": "1.8kg",
+      "price": 1599.99,
+      "images": [
+        {
+          "url": "https://example.com/laptop-silver-1.jpg",
+          "altText": "Gaming laptop silver",
+          "isPrimary": true
+        }
+      ],
+      "inventories": [
+        {
+          "id": "inventory-uuid-1",
+          "stockLevel": 25,
+          "restock": 5
+        }
+      ]
     }
-  ],
-  "categories": ["category-uuid-1", "category-uuid-2"]
+  ]
 }
 
 Response: 201 Created
@@ -133,20 +209,28 @@ Returns:
   "status": "Success",
   "data": {
     "id": "product-uuid",
-    "name": "New Product",
-    "description": "Product description",
-    "variants": [
+    "name": "Gaming Laptop",
+    "producer": "TechBrand",
+    "categories": [
       {
-        "id": "variant-uuid-1",
-        "name": "Size M",
-        "sku": "PROD-001-M",
-        "price": 49.99
+        "category": {
+          "name": "Electronics"
+        }
       },
       {
-        "id": "variant-uuid-2",
-        "name": "Size L",
-        "sku": "PROD-001-L",
-        "price": 54.99
+        "category": {
+          "name": "Computers"
+        }
+      }
+    ],
+    "variants": [
+      {
+        "productId": "product-uuid",
+        "id": "variant-uuid-1"
+      },
+      {
+        "productId": "product-uuid",
+        "id": "variant-uuid-2"
       }
     ]
   }
@@ -156,7 +240,22 @@ Example cURL:
 curl -X POST http://localhost:3000/api/catalog/ \
   -H "Authorization: Bearer your-access-token" \
   -H "Content-Type: application/json" \
-  -d @product-payload.json
+  -d '{
+    "name":"Gaming Laptop",
+    "producer":"TechBrand",
+    "categories":["category-uuid-1"],
+    "variants":[
+      {
+        "sku":"LAPTOP-001-16GB",
+        "color":"Space Gray",
+        "size":"15.6 inch",
+        "weight":"1.8kg",
+        "price":1299.99,
+        "images":[{"url":"https://example.com/laptop.jpg","altText":"Gaming laptop","isPrimary":true}],
+        "inventories":[{"id":"inventory-uuid","stockLevel":50,"restock":10}]
+      }
+    ]
+  }'
 
 -----------------------------------------------------------------------------------------------------
 
@@ -172,16 +271,24 @@ Request Parameters:
 
 Request Body (JSON):
 {
-  "name": "Updated Product Name",
-  "description": "Updated description",
+  "name": "Updated Gaming Laptop",
+  "producer": "TechBrand Pro",
+  "isActive": true,
   "variants": [
     {
-      "id": "variant-uuid-1",
-      "name": "Size M - Updated",
-      "price": 54.99
+      "variantId": "variant-uuid-1",
+      "sku": "LAPTOP-001-16GB-V2",
+      "color": "Midnight Black",
+      "size": "15.6 inch",
+      "weight": "1.85kg",
+      "price": 1349.99
+    },
+    {
+      "variantId": "variant-uuid-2",
+      "sku": "LAPTOP-001-32GB-V2",
+      "price": 1649.99
     }
-  ],
-  "categories": ["category-uuid-1"]
+  ]
 }
 
 Response: 200 OK
@@ -190,9 +297,10 @@ Returns:
   "status": "Success",
   "data": {
     "id": "product-uuid",
-    "name": "Updated Product Name",
-    "description": "Updated description",
-    "variants": [...]
+    "name": "Updated Gaming Laptop",
+    "producer": "TechBrand Pro",
+    "isActive": true,
+    "updatedAt": "2026-02-28T15:30:00Z"
   }
 }
 
@@ -200,7 +308,19 @@ Example cURL:
 curl -X PATCH http://localhost:3000/api/catalog/product-uuid \
   -H "Authorization: Bearer your-access-token" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Updated Product Name"}'
+  -d '{
+    "name":"Updated Gaming Laptop",
+    "producer":"TechBrand Pro",
+    "isActive":true,
+    "variants":[
+      {
+        "variantId":"variant-uuid-1",
+        "sku":"LAPTOP-001-16GB-V2",
+        "color":"Midnight Black",
+        "price":1349.99
+      }
+    ]
+  }'
 
 -----------------------------------------------------------------------------------------------------
 
@@ -219,8 +339,9 @@ Returns:
 {
   "status": "Success",
   "data": {
+    "id": "product-uuid",
     "message": "Product deleted successfully",
-    "productId": "product-uuid"
+    "deletedAt": "2026-02-28T16:00:00Z"
   }
 }
 
@@ -297,7 +418,7 @@ Authentication: Required (Bearer Token) - Roles: ADMIN
 Request Body (JSON):
 {
   "name": "Warehouse Denver",
-  "location": "Denver, CO"
+  "location": "Denver, CO 80202"
 }
 
 Response: 201 Created
@@ -307,8 +428,7 @@ Returns:
   "data": {
     "id": "inventory-uuid",
     "name": "Warehouse Denver",
-    "location": "Denver, CO",
-    "isActive": true
+    "location": "Denver, CO 80202"
   }
 }
 
@@ -316,7 +436,10 @@ Example cURL:
 curl -X POST http://localhost:3000/api/inventory/ \
   -H "Authorization: Bearer your-access-token" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Warehouse Denver","location":"Denver, CO"}'
+  -d '{
+    "name":"Warehouse Denver",
+    "location":"Denver, CO 80202"
+  }'
 
 -----------------------------------------------------------------------------------------------------
 
@@ -332,8 +455,8 @@ Request Parameters:
 
 Request Body (JSON):
 {
-  "name": "Warehouse Denver Updated",
-  "location": "Denver, CO"
+  "name": "Warehouse Denver - Main Hub",
+  "location": "Denver, CO 80202"
 }
 
 Response: 200 OK
@@ -342,8 +465,8 @@ Returns:
   "status": "Success",
   "data": {
     "id": "inventory-uuid",
-    "name": "Warehouse Denver Updated",
-    "location": "Denver, CO"
+    "name": "Warehouse Denver - Main Hub",
+    "location": "Denver, CO 80202"
   }
 }
 
@@ -351,7 +474,10 @@ Example cURL:
 curl -X PATCH http://localhost:3000/api/inventory/inventory-uuid \
   -H "Authorization: Bearer your-access-token" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Warehouse Denver Updated"}'
+  -d '{
+    "name":"Warehouse Denver - Main Hub",
+    "location":"Denver, CO 80202"
+  }'
 
 -----------------------------------------------------------------------------------------------------
 
@@ -368,8 +494,8 @@ Request Parameters:
 Request Body (JSON):
 {
   "productVariantId": "variant-uuid",
-  "quantity": 50,
-  "operation": "set" // or "add", "subtract"
+  "inventoryId": "inventory-uuid",
+  "stockLevel": 75
 }
 
 Response: 200 OK
@@ -377,9 +503,9 @@ Returns:
 {
   "status": "Success",
   "data": {
+    "productVariantId": "variant-uuid",
     "inventoryId": "inventory-uuid",
-    "variantId": "variant-uuid",
-    "quantity": 50
+    "stockLevel": 75
   }
 }
 
@@ -387,7 +513,11 @@ Example cURL:
 curl -X PATCH http://localhost:3000/api/inventory/stock/inventory-uuid \
   -H "Authorization: Bearer your-access-token" \
   -H "Content-Type: application/json" \
-  -d '{"productVariantId":"variant-uuid","quantity":50,"operation":"set"}'
+  -d '{
+    "productVariantId":"variant-uuid",
+    "inventoryId":"inventory-uuid",
+    "stockLevel":75
+  }'
 
 -----------------------------------------------------------------------------------------------------
 
@@ -444,14 +574,22 @@ Returns:
     "firstName": "John",
     "lastName": "Doe",
     "phone": "+1234567890",
-    "profilePic": "https://example.com/profile.jpg"
+    "profilePic": "https://example.com/profile.jpg",
+    "roles": ["CUSTOMER"]
   }
 }
 
 Example cURL:
 curl -X POST http://localhost:3000/api/users/ \
   -H "Content-Type: application/json" \
-  -d '{"email":"newuser@example.com","firstName":"John","lastName":"Doe","password":"SecurePassword123!","phone":"+1234567890"}'
+  -d '{
+    "email":"newuser@example.com",
+    "firstName":"John",
+    "lastName":"Doe",
+    "password":"SecurePassword123!",
+    "phone":"+1234567890",
+    "profilePic":"https://example.com/profile.jpg"
+  }'
 
 -----------------------------------------------------------------------------------------------------
 
@@ -558,10 +696,13 @@ Request Parameters:
 
 Request Body (JSON):
 {
-  "firstName": "Jonathan",
-  "lastName": "Doe Updated",
   "phone": "+9876543210",
-  "profilePic": "https://example.com/new-profile.jpg"
+  "password": "NewPassword456!",
+  "profile": {
+    "profilePic": "https://example.com/new-profile.jpg",
+    "membership": "gold",
+    "recommendations": {}
+  }
 }
 
 Response: 200 OK
@@ -572,8 +713,8 @@ Returns:
   "data": {
     "id": "user-uuid",
     "email": "user@example.com",
-    "firstName": "Jonathan",
-    "lastName": "Doe Updated",
+    "firstName": "John",
+    "lastName": "Doe",
     "phone": "+9876543210",
     "profilePic": "https://example.com/new-profile.jpg"
   }
@@ -583,7 +724,14 @@ Example cURL:
 curl -X PATCH http://localhost:3000/api/users/user-uuid \
   -H "Authorization: Bearer your-access-token" \
   -H "Content-Type: application/json" \
-  -d '{"firstName":"Jonathan","lastName":"Doe Updated"}'
+  -d '{
+    "phone":"+9876543210",
+    "password":"NewPassword456!",
+    "profile":{
+      "profilePic":"https://example.com/new-profile.jpg",
+      "membership":"gold"
+    }
+  }'
 
 -----------------------------------------------------------------------------------------------------
 
@@ -830,16 +978,15 @@ Request Body (JSON):
     {
       "productVariantId": "variant-uuid-1",
       "quantity": 2,
-      "price": 49.99
+      "unitPrice": 49.99
     },
     {
       "productVariantId": "variant-uuid-2",
       "quantity": 1,
-      "price": 29.99
+      "unitPrice": 29.99
     }
   ],
-  "shippingAddress": "123 Main St, City, State 12345",
-  "notes": "Please gift wrap"
+  "totalPrice": 129.97
 }
 
 Response: 201 Created
@@ -849,10 +996,24 @@ Returns:
   "data": {
     "id": "order-uuid",
     "userId": "user-uuid",
-    "items": [{...}],
-    "status": "pending",
     "totalPrice": 129.97,
-    "shippingAddress": "123 Main St, City, State 12345",
+    "status": "pending",
+    "items": [
+      {
+        "id": "order-item-uuid-1",
+        "orderId": "order-uuid",
+        "productVariantId": "variant-uuid-1",
+        "quantity": 2,
+        "unitPrice": 49.99
+      },
+      {
+        "id": "order-item-uuid-2",
+        "orderId": "order-uuid",
+        "productVariantId": "variant-uuid-2",
+        "quantity": 1,
+        "unitPrice": 29.99
+      }
+    ],
     "createdAt": "2026-02-28T12:00:00Z"
   }
 }
@@ -861,7 +1022,14 @@ Example cURL:
 curl -X POST http://localhost:3000/api/orders/ \
   -H "Authorization: Bearer your-access-token" \
   -H "Content-Type: application/json" \
-  -d @order-payload.json
+  -d '{
+    "userId":"user-uuid",
+    "items":[
+      {"productVariantId":"variant-uuid-1","quantity":2,"unitPrice":49.99},
+      {"productVariantId":"variant-uuid-2","quantity":1,"unitPrice":29.99}
+    ],
+    "totalPrice":129.97
+  }'
 
 -----------------------------------------------------------------------------------------------------
 
@@ -882,11 +1050,37 @@ Returns:
   "data": {
     "id": "order-uuid",
     "userId": "user-uuid",
-    "items": [{...}],
-    "status": "pending",
     "totalPrice": 129.97,
-    "shippingAddress": "123 Main St, City, State 12345",
-    "createdAt": "2026-02-28T12:00:00Z"
+    "status": "pending",
+    "items": [
+      {
+        "id": "order-item-uuid-1",
+        "orderId": "order-uuid",
+        "productVariantId": "variant-uuid-1",
+        "quantity": 2,
+        "unitPrice": 49.99
+      },
+      {
+        "id": "order-item-uuid-2",
+        "orderId": "order-uuid",
+        "productVariantId": "variant-uuid-2",
+        "quantity": 1,
+        "unitPrice": 29.99
+      }
+    ],
+    "payments": [
+      {
+        "id": "payment-uuid-1",
+        "orderId": "order-uuid",
+        "paymentMethodId": "method-uuid",
+        "amount": 129.97,
+        "transactionId": "txn_123456789",
+        "status": "completed",
+        "createdAt": "2026-02-28T12:30:00Z"
+      }
+    ],
+    "createdAt": "2026-02-28T12:00:00Z",
+    "updatedAt": "2026-02-28T12:30:00Z"
   }
 }
 
@@ -914,10 +1108,18 @@ Returns:
     {
       "id": "order-uuid-1",
       "userId": "user-uuid",
-      "items": [{...}],
-      "status": "completed",
       "totalPrice": 129.97,
+      "status": "completed",
+      "itemCount": 3,
       "createdAt": "2026-02-28T12:00:00Z"
+    },
+    {
+      "id": "order-uuid-2",
+      "userId": "user-uuid",
+      "totalPrice": 89.99,
+      "status": "shipped",
+      "itemCount": 2,
+      "createdAt": "2026-02-27T15:45:00Z"
     }
   ]
 }
@@ -951,7 +1153,6 @@ Returns:
   "status": "Success",
   "data": {
     "id": "order-uuid",
-    "userId": "user-uuid",
     "status": "shipped",
     "updatedAt": "2026-02-28T14:30:00Z"
   }
@@ -969,7 +1170,7 @@ curl -X PATCH http://localhost:3000/api/orders/order-uuid/status \
 
 HTTP Method: DELETE
 Endpoint: /orders/:orderId
-Description: Deletes an order.
+Description: Deletes an order (soft delete).
 Authentication: Required (Bearer Token)
 
 Request Parameters:
@@ -979,7 +1180,11 @@ Response: 200 OK
 Returns:
 {
   "status": "Success",
-  "message": "Order deleted successfully"
+  "data": {
+    "id": "order-uuid",
+    "message": "Order deleted successfully",
+    "deletedAt": "2026-02-28T16:00:00Z"
+  }
 }
 
 Example cURL:
@@ -1002,10 +1207,10 @@ Request Parameters:
 
 Request Body (JSON):
 {
+  "orderId": "order-uuid",
+  "paymentMethodId": "method-uuid",
   "amount": 129.97,
-  "paymentMethod": "credit_card",
-  "transactionId": "txn_123456789",
-  "status": "completed"
+  "transactionId": "txn_123456789"
 }
 
 Response: 201 Created
@@ -1015,9 +1220,10 @@ Returns:
   "data": {
     "id": "payment-uuid",
     "orderId": "order-uuid",
+    "paymentMethodId": "method-uuid",
     "amount": 129.97,
-    "paymentMethod": "credit_card",
-    "status": "completed",
+    "transactionId": "txn_123456789",
+    "status": "pending",
     "createdAt": "2026-02-28T12:30:00Z"
   }
 }
@@ -1026,7 +1232,12 @@ Example cURL:
 curl -X POST http://localhost:3000/api/orders/order-uuid/payments \
   -H "Authorization: Bearer your-access-token" \
   -H "Content-Type: application/json" \
-  -d '{"amount":129.97,"paymentMethod":"credit_card","transactionId":"txn_123456789","status":"completed"}'
+  -d '{
+    "orderId":"order-uuid",
+    "paymentMethodId":"method-uuid",
+    "amount":129.97,
+    "transactionId":"txn_123456789"
+  }'
 
 -----------------------------------------------------------------------------------------------------
 
@@ -1188,15 +1399,12 @@ Authentication: Required (Bearer Token) - Roles: ADMIN
 
 Request Body (JSON):
 {
-  "variantId": "variant-uuid",
-  "type": "percentage",
-  "value": 15,
-  "description": "Spring Sale - 15% off",
-  "startDate": "2026-03-01T00:00:00Z",
-  "endDate": "2026-03-31T23:59:59Z"
+  "productVariantId": "variant-uuid",
+  "discountType": "percentage",
+  "discountValue": 15
 }
 
-Discount types: percentage, fixed_amount
+Discount types: percentage (0-100), fixed_amount (currency amount)
 
 Response: 201 Created
 Returns:
@@ -1204,12 +1412,8 @@ Returns:
   "status": "Success",
   "data": {
     "id": "discount-uuid",
-    "variantId": "variant-uuid",
-    "type": "percentage",
-    "value": 15,
-    "description": "Spring Sale - 15% off",
-    "startDate": "2026-03-01T00:00:00Z",
-    "endDate": "2026-03-31T23:59:59Z",
+    "discountType": "percentage",
+    "discountValue": 15,
     "createdAt": "2026-02-28T10:00:00Z"
   }
 }
@@ -1218,7 +1422,11 @@ Example cURL:
 curl -X POST http://localhost:3000/api/orders/discount/variant \
   -H "Authorization: Bearer your-access-token" \
   -H "Content-Type: application/json" \
-  -d '{"variantId":"variant-uuid","type":"percentage","value":15,"description":"Spring Sale - 15% off"}'
+  -d '{
+    "productVariantId":"variant-uuid",
+    "discountType":"percentage",
+    "discountValue":15
+  }'
 
 -----------------------------------------------------------------------------------------------------
 
@@ -1232,12 +1440,11 @@ Authentication: Required (Bearer Token) - Roles: ADMIN
 Request Body (JSON):
 {
   "categoryId": "category-uuid",
-  "type": "percentage",
-  "value": 20,
-  "description": "Electronics Category - 20% off",
-  "startDate": "2026-03-01T00:00:00Z",
-  "endDate": "2026-03-31T23:59:59Z"
+  "discountType": "percentage",
+  "discountValue": 20
 }
+
+Discount types: percentage (0-100), fixed_amount (currency amount)
 
 Response: 201 Created
 Returns:
@@ -1245,12 +1452,8 @@ Returns:
   "status": "Success",
   "data": {
     "id": "discount-uuid",
-    "categoryId": "category-uuid",
-    "type": "percentage",
-    "value": 20,
-    "description": "Electronics Category - 20% off",
-    "startDate": "2026-03-01T00:00:00Z",
-    "endDate": "2026-03-31T23:59:59Z",
+    "discountType": "percentage",
+    "discountValue": 20,
     "createdAt": "2026-02-28T10:00:00Z"
   }
 }
@@ -1259,7 +1462,11 @@ Example cURL:
 curl -X POST http://localhost:3000/api/orders/discount/category \
   -H "Authorization: Bearer your-access-token" \
   -H "Content-Type: application/json" \
-  -d '{"categoryId":"category-uuid","type":"percentage","value":20,"description":"Electronics Category - 20% off"}'
+  -d '{
+    "categoryId":"category-uuid",
+    "discountType":"percentage",
+    "discountValue":20
+  }'
 
 =====================================================================================================
 ERROR RESPONSES
