@@ -8,7 +8,7 @@ import {
   UpdateProductResponse,
   DeleteProductResponse,
   GetProductByIdResponse,
-} from "../types/types";
+} from "../types/types.js";
 
 export interface ProductRepo {
   getAllProducts(db: PrismaClient): Promise<GetAllProductsResponse[]>;

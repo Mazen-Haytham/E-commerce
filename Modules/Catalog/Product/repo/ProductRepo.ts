@@ -8,9 +8,9 @@ import {
   UpdateProductResponse,
   DeleteProductResponse,
   GetProductByIdResponse,
-} from "../types/types";
-import { ProductRepo } from "./Repo";
-import { prisma } from "../../../../src/shared/prisma";
+} from "../types/types.js";
+import { ProductRepo } from "./Repo.js";
+import { prisma } from "../../../../src/shared/prisma.js";
 export class ProductPostgreSqlRepo implements ProductRepo {
   getAllProducts = async (
     db: PrismaClient,

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { ProductService } from "../service/productService";
+import { ProductService } from "../service/productService.js";
 import {
   AddProductInput,
   UpdateProductInput,
@@ -7,7 +7,7 @@ import {
   AddProductResponse,
   UpdateProductResponse,
   DeleteProductResponse,
-} from "../types/types";
+} from "../types/types.js";
 
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
