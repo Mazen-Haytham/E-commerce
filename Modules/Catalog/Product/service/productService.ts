@@ -1,4 +1,4 @@
-import { ProductRepo } from "../repo/Repo";
+import { ProductRepo } from "../repo/Repo.js";
 import {
   AddProductInput,
   AddProductResponse,
@@ -6,12 +6,12 @@ import {
   UpdateProductInput,
   UpdateProductResponse,
   DeleteProductResponse,
-} from "../types/types";
-import { prisma } from "../../../../src/shared/prisma";
+} from "../types/types.js";
+import { prisma } from "../../../../src/shared/prisma.js";
 import { PrismaClient } from "@prisma/client/extension";
-import { addProductVariantInInventoryInput } from "../../../Inventory/types/types";
-import { InventoryApi } from "../../../Inventory/Api/InvApi";
-import { AppError } from "../../../../src/utils/AppError";
+import { addProductVariantInInventoryInput } from "../../../Inventory/types/types.js";
+import { InventoryApi } from "../../../Inventory/Api/InvApi.js";
+import { AppError } from "../../../../src/utils/AppError.js";
 
 export class ProductService {
   constructor(
@@ -122,5 +122,35 @@ export class ProductService {
       productId,
       prisma as unknown as PrismaClient,
     );
+  };
+
+  getProductById = async (productId: string) => {
+    if (!productId || productId.trim() === "") {
+      throw new AppError("Product ID is required", 400);
+    }
+
+    const product = await this.productRepo.getProductById(productId);
+
+    if (!product) {
+      throw new AppError("Product not found", 404);
+    }
+
+    return product;
+  };
+
+  getProductVariantById = async (variantId: string) => {
+    if (!variantId || variantId.trim() === "") {
+      throw new AppError("Product Variant ID is required", 400);
+    }
+
+    const variant = await prisma.productVariant.findUnique({
+      where: { id: variantId },
+    });
+
+    if (!variant) {
+      throw new AppError("Product variant not found", 404);
+    }
+
+    return variant;
   };
 }

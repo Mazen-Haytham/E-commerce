@@ -5,23 +5,23 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["users","catalog","inventory","orders"]
+  schemas  = ["users", "catalog", "inventory", "orders"]
 }
 
 // -------------------- USERS --------------------
 model User {
-  id        String       @id @default(uuid())
-  email     String       @unique
-  firstName String
-  lastName  String
-  password  String
-  phone     String
-  tokenVersion Int @default(0)
-  deletedAt DateTime?
-  profile   UserProfile?
-  cart      Cart?
-  roles     UserRole[]
-  orders    Order[]
+  id           String       @id @default(uuid())
+  email        String       @unique
+  firstName    String
+  lastName     String
+  password     String
+  phone        String
+  tokenVersion Int          @default(0)
+  deletedAt    DateTime?
+  profile      UserProfile?
+  cart         Cart?
+  roles        UserRole[]
+  orders       Order[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -30,9 +30,9 @@ model User {
 }
 
 model UserProfile {
-  userId          String   @id
+  userId          String  @id
   profilePic      String?
-  loyaltyPoints   Int      @default(0)
+  loyaltyPoints   Int     @default(0)
   membership      String  @default("regular")
   recommendations Json?
 
@@ -45,8 +45,8 @@ model UserProfile {
 }
 
 model Cart {
-  id     Int @id @default(autoincrement())
-  user   User  @relation(fields: [userId], references: [id])
+  id     Int    @id @default(autoincrement())
+  user   User   @relation(fields: [userId], references: [id])
   userId String @unique
 
   items CartItem[]
@@ -75,11 +75,11 @@ model CartItem {
 
 // -------------------- ROLES --------------------
 model Role {
-  id   Int @id @default(autoincrement())
+  id   Int    @id @default(autoincrement())
   name String @unique
 
   users UserRole[]
-  
+
   @@schema("users")
 }
 
@@ -89,19 +89,21 @@ model UserRole {
   userId String
   role   Role   @relation(fields: [roleId], references: [id])
   roleId Int
+
   @@unique([userId, roleId])
   @@schema("users")
 }
 
 // -------------------- CATALOG --------------------
 model Product {
-  id        String           @id @default(uuid())
-  name      String
-  producer  String?
-  isActive  Boolean          @default(true)
-  deletedAt DateTime?
-  variants  ProductVariant[]
+  id         String            @id @default(uuid())
+  name       String
+  producer   String?
+  isActive   Boolean           @default(true)
+  deletedAt  DateTime?
+  variants   ProductVariant[]
   categories ProductCategory[]
+  pricing    Pricing[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -110,52 +112,57 @@ model Product {
 }
 
 model ProductVariant {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   product   Product @relation(fields: [productId], references: [id])
   productId String
 
-  sku       String   @unique
-  color     String?
-  size      String?
-  weight    String
+  sku    String  @unique
+  color  String?
+  size   String?
+  weight String
 
-  price     Decimal  // Base price (catalog truth)
+  price Decimal // Base price (catalog truth)
 
   additionalInfo Json?
-  images VariantImage[]
-  stock      ProductStock[]
-  cartItems CartItem[]
-  orderItems OrderItem[]
+  images         VariantImage[]
+  stock          ProductStock[]
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  pricing        Pricing[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@schema("catalog")
 }
+
 model VariantImage {
-  id        String   @id @default(uuid())
+  id String @id @default(uuid())
 
   variant   ProductVariant @relation(fields: [variantId], references: [id])
   variantId String
 
-  url       String
-  altText   String?
+  url     String
+  altText String?
 
-  sortOrder Int?     // image position
-  isPrimary Boolean  @default(false)
+  sortOrder Int? // image position
+  isPrimary Boolean @default(false)
 
   createdAt DateTime @default(now())
 
   @@schema("catalog")
 }
+
 model Category {
   id   String @id @default(uuid())
   name String @unique
 
-  products ProductCategory[]
-  createdAt DateTime @default(now())
-  updateAt DateTime @updatedAt
+  products  ProductCategory[]
+  pricing   Pricing[]
+  createdAt DateTime          @default(now())
+  updateAt  DateTime          @updatedAt
   deletedAt DateTime?
+
   @@schema("catalog")
 }
 
@@ -166,21 +173,49 @@ model ProductCategory {
   category   Category @relation(fields: [categoryId], references: [id])
   categoryId String
 
-  @@unique([productId,categoryId])
+  @@unique([productId, categoryId])
+  @@schema("catalog")
+}
+
+model Pricing {
+  id String @id @default(uuid())
+
+  // Discount details
+  discountType  String // e.g., "percentage", "fixed_amount"
+  discountValue Decimal // percentage (0-100) or fixed amount
+
+  // Date range for discount validity
+  startDate DateTime
+  endDate   DateTime
+
+  // Polymorphic relationships - only ONE should be set
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String?
+
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  productVariantId String?
+
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@schema("catalog")
 }
 
 // -------------------- INVENTORY --------------------
 model Inventory {
-  id       String @id @default(uuid())
-  name     String
-  location String
+  id        String         @id @default(uuid())
+  name      String
+  location  String
   deletedAt DateTime?
-  stock ProductStock[]
-  @@unique([name,location])
+  stock     ProductStock[]
+  createdAt DateTime       @default(now())
+  updateAt  DateTime       @updatedAt
+
+  @@unique([name, location])
   @@schema("inventory")
-  createdAt DateTime @default(now())
-  updateAt DateTime @updatedAt
 }
 
 model ProductStock {
@@ -189,10 +224,11 @@ model ProductStock {
   inventory        Inventory      @relation(fields: [inventoryId], references: [id])
   inventoryId      String
 
-  stockLevel   Int @default(0)
-  restockAlert Int @default(0)
-  createdAt DateTime @default(now())
-  updateAt DateTime @updatedAt
+  stockLevel   Int      @default(0)
+  restockAlert Int      @default(0)
+  createdAt    DateTime @default(now())
+  updateAt     DateTime @updatedAt
+
   @@id([productVariantId, inventoryId])
   @@schema("inventory")
 }
@@ -253,164 +289,3 @@ model Payment {
   @@schema("orders")
 }
 
-
-
-// generator client {
-//   provider = "prisma-client-js"
-//   output   = "../src/generated/prisma"
-// }
-
-// datasource db {
-//   provider = "postgresql"
-// }
-
-// // -------------------- Users & Roles --------------------
-// model User {
-//   id        String       @id @default(uuid())
-//   createdAt DateTime     @default(now())
-//   updatedAt DateTime     @updatedAt
-//   email     String       @unique
-//   firstName String
-//   lastName  String
-//   password  String
-//   phone     String
-//   profile   UserProfile?
-//   cart      Cart?
-//   roles     Role[]       @relation("UserRoles") // implicit many-to-many
-//   orders    Order[]
-// }
-
-// model UserProfile {
-//   userId          String   @id
-//   profilePic      String?
-//   loyaltyPoints   Int?     @default(0)
-//   membership      String?
-//   recommendations Json?
-//   user            User     @relation(fields: [userId], references: [id])
-//   createdAt       DateTime @default(now())
-//   updatedAt       DateTime @updatedAt
-// }
-
-// model Role {
-//   id        String   @id @default(uuid())
-//   name      String
-//   users     User[]   @relation("UserRoles") // implicit many-to-many
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-// }
-
-// // -------------------- Products & Variants --------------------
-// model Product {
-//   id         String           @id @default(uuid())
-//   name       String
-//   producer   String?
-//   createdAt  DateTime         @default(now())
-//   updatedAt  DateTime         @updatedAt
-//   variants   ProductVariant[]
-//   categories Category[]       @relation("ProductCategories") // implicit many-to-many
-//   isActive   Boolean          @default(true) // simple visibility
-// }
-
-// model ProductVariant {
-//   id             String         @id @default(uuid())
-//   product        Product        @relation(fields: [productId], references: [id])
-//   productId      String
-//   color          String?
-//   size           String?
-//   weight         String
-//   sku            String         @unique
-//   price          Decimal
-//   additionalInfo Json?
-//   stock          ProductStock[]
-//   orderItems     OrderItem[]
-//   createdAt      DateTime       @default(now())
-//   updatedAt      DateTime       @updatedAt
-//   cartItems      CartItem[]
-// }
-
-// // -------------------- Categories --------------------
-// model Category {
-//   id       String    @id @default(uuid())
-//   name     String
-//   products Product[] @relation("ProductCategories") // implicit many-to-many
-// }
-
-// // -------------------- Inventory & Stock --------------------
-// model Inventory {
-//   id       String         @id @default(uuid())
-//   name     String
-//   location String
-//   stock    ProductStock[]
-// }
-
-// model ProductStock {
-//   productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
-//   productVariantId String
-//   inventory        Inventory      @relation(fields: [inventoryId], references: [id])
-//   inventoryId      String
-//   stockLevel       Int            @default(0)
-//   restockAlert     Int            @default(0)
-
-//   @@id([productVariantId, inventoryId])
-// }
-
-// // -------------------- Orders & Items --------------------
-// model Order {
-//   id         String      @id @default(uuid())
-//   user       User        @relation(fields: [userId], references: [id])
-//   userId     String
-//   totalPrice Decimal
-//   status     String // e.g., 'pending', 'paid', 'shipped', 'cancelled'
-//   items      OrderItem[]
-//   payments   Payment[]
-//   createdAt  DateTime    @default(now())
-//   updatedAt  DateTime    @updatedAt
-// }
-
-// model OrderItem {
-//   id               String         @id @default(uuid())
-//   order            Order          @relation(fields: [orderId], references: [id])
-//   orderId          String
-//   productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
-//   productVariantId String
-//   quantity         Int
-//   unitPrice        Decimal
-// }
-
-// // -------------------- Payments --------------------
-// model PaymentMethod {
-//   id       String    @id @default(uuid())
-//   name     String
-//   payments Payment[]
-// }
-
-// model Payment {
-//   id              String        @id @default(uuid())
-//   order           Order         @relation(fields: [orderId], references: [id])
-//   orderId         String
-//   paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
-//   paymentMethodId String
-//   amount          Decimal
-//   transactionId   String?
-//   status          String // e.g., 'pending', 'succeeded', 'failed'
-//   createdAt       DateTime      @default(now())
-// }
-
-// model Cart {
-//   id        String     @id @default(uuid())
-//   user      User      @relation(fields: [userId], references: [id])
-//   userId    String   @unique
-//   items     CartItem[]
-//   createdAt DateTime   @default(now())
-//   updatedAt DateTime   @updatedAt
-// }
-
-// model CartItem {
-//   id               String         @id @default(uuid())
-//   cart             Cart           @relation(fields: [cartId], references: [id])
-//   cartId           String
-//   productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
-//   productVariantId String
-//   quantity         Int
-//   addedAt          DateTime       @default(now())
-// }
