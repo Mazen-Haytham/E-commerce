@@ -47,6 +47,29 @@ export class ProductService {
   };
 
   addProduct = async (input: AddProductInput): Promise<AddProductResponse> => {
+    // Validation: Check if product with same name already exists
+    const productNameExists = await this.productRepo.checkProductNameExists(
+      input.name,
+    );
+
+    if (productNameExists) {
+      throw new AppError(
+        `Product with name "${input.name}" already exists`,
+        409,
+      );
+    }
+
+    // Validation: Check if any variant SKU already exists
+    const skus = input.variants.map((variant) => variant.sku);
+    const existingVariants = await this.productRepo.checkSKUsExist(skus);
+
+    if (existingVariants.length > 0) {
+      const duplicateSKUs = existingVariants
+        .map((v) => `"${v.sku}" (product: ${v.productName})`)
+        .join(", ");
+      throw new AppError(`Variant SKU(s) already exist: ${duplicateSKUs}`, 409);
+    }
+
     return await prisma.$transaction(async (tx) => {
       // Add product to database
       const product: AddProductResponse = await this.productRepo.addProduct(
@@ -85,9 +108,7 @@ export class ProductService {
     input: UpdateProductInput,
   ): Promise<UpdateProductResponse> => {
     // Validation: Check if product exists and is not deleted
-    const existingProduct = await prisma.product.findUnique({
-      where: { id: input.productId },
-    });
+    const existingProduct = await this.getProductById(input.productId);
 
     if (!existingProduct || existingProduct.deletedAt !== null) {
       throw new AppError("Product not found or has been deleted", 404);
@@ -118,10 +139,7 @@ export class ProductService {
       throw new AppError("Product is already deleted", 410);
     }
 
-    return await this.productRepo.deleteProduct(
-      productId,
-      prisma as unknown as PrismaClient,
-    );
+    return await this.productRepo.deleteProduct(productId, prisma);
   };
 
   getProductById = async (productId: string) => {

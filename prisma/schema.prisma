@@ -122,7 +122,7 @@ model ProductVariant {
   weight String
 
   price Decimal // Base price (catalog truth)
-
+  deletedAt DateTime?
   additionalInfo Json?
   images         VariantImage[]
   stock          ProductStock[]

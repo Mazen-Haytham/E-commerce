@@ -15,7 +15,7 @@ export class ProductPostgreSqlRepo implements ProductRepo {
   getAllProducts = async (
     db: PrismaClient,
   ): Promise<GetAllProductsResponse[]> => {
-    const products = await prisma.product.findMany({
+    const products = await db.product.findMany({
       where: {
         deletedAt: null,
       },
@@ -47,6 +47,7 @@ export class ProductPostgreSqlRepo implements ProductRepo {
           select: {
             category: {
               select: {
+                id: true,
                 name: true,
               },
             },
@@ -61,7 +62,7 @@ export class ProductPostgreSqlRepo implements ProductRepo {
     productId: string,
   ): Promise<GetProductByIdResponse | null> => {
     const product = await prisma.product.findUnique({
-      where: { id: productId },
+      where: { id: productId, deletedAt: null },
       select: {
         id: true,
         name: true,
@@ -77,7 +78,7 @@ export class ProductPostgreSqlRepo implements ProductRepo {
     input: AddProductInput,
     db: PrismaClient,
   ): Promise<AddProductResponse> => {
-    const product = await prisma.product.create({
+    const product = await db.product.create({
       data: {
         name: input.name,
         producer: input.producer ?? undefined,
@@ -89,15 +90,20 @@ export class ProductPostgreSqlRepo implements ProductRepo {
           },
         },
         variants: {
-          createMany: {
-            data: input.variants.map((variant) => ({
-              price: variant.price,
-              sku: variant.sku,
-              color: variant.color ?? undefined,
-              size: variant.size ?? undefined,
-              weight: variant.weight,
-            })),
-          },
+          create: input.variants.map((variant) => ({
+            price: variant.price,
+            sku: variant.sku,
+            color: variant.color ?? undefined,
+            size: variant.size ?? undefined,
+            weight: variant.weight,
+            images: {
+              create: variant.images.map((img) => ({
+                url: img.url,
+                altText: img.altText,
+                isPrimary: img.isPrimary,
+              })),
+            },
+          })),
         },
       },
       select: {
@@ -108,6 +114,7 @@ export class ProductPostgreSqlRepo implements ProductRepo {
           select: {
             category: {
               select: {
+                id: true,
                 name: true,
               },
             },
@@ -134,7 +141,7 @@ export class ProductPostgreSqlRepo implements ProductRepo {
     if (input.producer !== undefined) updateData.producer = input.producer;
     if (input.isActive !== undefined) updateData.isActive = input.isActive;
 
-    const product = await prisma.product.update({
+    const product = await db.product.update({
       where: { id: input.productId },
       data: updateData,
       select: {
@@ -160,7 +167,7 @@ export class ProductPostgreSqlRepo implements ProductRepo {
           variantUpdateData.price = variant.price;
 
         if (Object.keys(variantUpdateData).length > 0) {
-          await prisma.productVariant.update({
+          await db.productVariant.update({
             where: { id: variant.variantId },
             data: variantUpdateData,
           });
@@ -177,7 +184,7 @@ export class ProductPostgreSqlRepo implements ProductRepo {
   ): Promise<DeleteProductResponse> => {
     const deletedAt = new Date();
 
-    await prisma.product.update({
+    await db.product.update({
       where: { id: productId },
       data: { deletedAt },
     });
@@ -187,5 +194,41 @@ export class ProductPostgreSqlRepo implements ProductRepo {
       message: "Product soft deleted successfully",
       deletedAt,
     };
+  };
+
+  checkProductNameExists = async (name: string): Promise<boolean> => {
+    const existingProduct = await prisma.product.findFirst({
+      where: {
+        name: name,
+        deletedAt: null,
+      },
+    });
+
+    return !!existingProduct;
+  };
+
+  checkSKUsExist = async (
+    skus: string[],
+  ): Promise<{ sku: string; productName: string }[]> => {
+    const existingVariants = await prisma.productVariant.findMany({
+      where: {
+        sku: {
+          in: skus,
+        },
+      },
+      select: {
+        sku: true,
+        product: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    return existingVariants.map((v) => ({
+      sku: v.sku,
+      productName: v.product.name,
+    }));
   };
 }

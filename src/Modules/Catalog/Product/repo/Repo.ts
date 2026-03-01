@@ -25,4 +25,8 @@ export interface ProductRepo {
     productId: string,
     db: PrismaClient,
   ): Promise<DeleteProductResponse>;
+  checkProductNameExists(name: string): Promise<boolean>;
+  checkSKUsExist(
+    skus: string[],
+  ): Promise<{ sku: string; productName: string }[]>;
 }

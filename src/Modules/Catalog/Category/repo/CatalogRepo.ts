@@ -79,4 +79,45 @@ export class PrismaProductRepo implements Repo {
     });
     return deletedCategory;
   };
+
+  checkCategoryNamesExist = async (
+    names: string[],
+    db: PrismaClient,
+  ): Promise<CategoryResponse[]> => {
+    const existingCategories: CategoryResponse[] = await db.category.findMany({
+      where: {
+        name: {
+          in: names,
+        },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+    return existingCategories;
+  };
+
+  checkCategoryNameExists = async (
+    name: string,
+    excludeId: string,
+    db: PrismaClient,
+  ): Promise<CategoryResponse | null> => {
+    const duplicateCategory: CategoryResponse | null =
+      await db.category.findFirst({
+        where: {
+          name: name,
+          id: {
+            not: excludeId,
+          },
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+    return duplicateCategory;
+  };
 }

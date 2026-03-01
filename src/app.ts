@@ -8,6 +8,8 @@ import { authRouter } from "./Modules/Auth/index.js";
 import { sendError } from "./utils/sendError.js";
 import { productRouter } from "./Modules/Catalog/Product/index.js";
 import { OrderRouter } from "./Modules/Orders/index.js";
+import { categoryRouter } from "./Modules/Catalog/Category/index.js";
+
 dotenv.config();
 
 const app = express();
@@ -20,5 +22,6 @@ app.use("/api/inventory", inventoryRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/catalog",productRouter);
 app.use("/api/orders",OrderRouter);
+app.use("/api/categories",categoryRouter);
 app.use(sendError);
 export default app;

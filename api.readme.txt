@@ -56,10 +56,167 @@ curl -X POST http://localhost:3000/api/auth/refresh \
   -b cookies.txt
 
 =====================================================================================================
+CATEGORY ENDPOINTS - Base Path: /categories
+=====================================================================================================
+
+2.1 Get All Categories
+
+HTTP Method: GET
+Endpoint: /categories
+Description: Retrieves all categories.
+Authentication: Required (Bearer Token) - Roles: ADMIN, USER
+
+Request Parameters: None
+Request Body: None
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": [
+    {
+      "id": "category-uuid-1",
+      "name": "Electronics"
+    },
+    {
+      "id": "category-uuid-2",
+      "name": "Clothing"
+    }
+  ]
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/categories \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+2.2 Get Category by ID
+
+HTTP Method: GET
+Endpoint: /categories/:id
+Description: Retrieves a specific category by ID.
+Authentication: Required (Bearer Token) - Roles: ADMIN, USER
+
+Request Parameters:
+- id (string): The category UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "category-uuid-1",
+    "name": "Electronics"
+  }
+}
+
+Example cURL:
+curl -X GET http://localhost:3000/api/categories/category-uuid-1 \
+  -H "Authorization: Bearer your-access-token"
+
+-----------------------------------------------------------------------------------------------------
+
+2.3 Add Categories
+
+HTTP Method: POST
+Endpoint: /categories
+Description: Creates one or more new categories.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Body (JSON - Array):
+[
+  {
+    "name": "Electronics"
+  },
+  {
+    "name": "Clothing"
+  }
+]
+
+Response: 201 Created
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "count": 2
+  }
+}
+
+Example cURL:
+curl -X POST http://localhost:3000/api/categories \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {"name":"Electronics"},
+    {"name":"Clothing"}
+  ]'
+
+-----------------------------------------------------------------------------------------------------
+
+2.4 Update Category
+
+HTTP Method: PATCH
+Endpoint: /categories/:id
+Description: Updates a category name.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Parameters:
+- id (string): The category UUID
+
+Request Body (JSON):
+{
+  "name": "Updated Category Name"
+}
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "category-uuid-1",
+    "name": "Updated Category Name"
+  }
+}
+
+Example cURL:
+curl -X PATCH http://localhost:3000/api/categories/category-uuid-1 \
+  -H "Authorization: Bearer your-access-token" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Updated Category Name"}'
+
+-----------------------------------------------------------------------------------------------------
+
+2.5 Delete Category
+
+HTTP Method: DELETE
+Endpoint: /categories/:id
+Description: Deletes a category.
+Authentication: Required (Bearer Token) - Roles: ADMIN
+
+Request Parameters:
+- id (string): The category UUID
+
+Response: 200 OK
+Returns:
+{
+  "status": "Success",
+  "data": {
+    "id": "category-uuid-1",
+    "name": "Electronics"
+  },
+  "message": "Category deleted successfully"
+}
+
+Example cURL:
+curl -X DELETE http://localhost:3000/api/categories/category-uuid-1 \
+  -H "Authorization: Bearer your-access-token"
+
+=====================================================================================================
 PRODUCT CATALOG ENDPOINTS - Base Path: /catalog
 =====================================================================================================
 
-2.1 Get All Products
+3.1 Get All Products
 
 HTTP Method: GET
 Endpoint: /catalog/
@@ -94,32 +251,13 @@ Returns:
               "isPrimary": true
             }
           ]
-        },
-        {
-          "id": "variant-uuid-2",
-          "sku": "LAPTOP-001-32GB",
-          "color": "Silver",
-          "size": "15.6 inch",
-          "weight": "1.8kg",
-          "price": 1599.99,
-          "images": [
-            {
-              "url": "https://example.com/laptop-silver-1.jpg",
-              "altText": "Gaming laptop silver",
-              "isPrimary": true
-            }
-          ]
         }
       ],
       "categories": [
         {
           "category": {
+            "id": "category-uuid-1",
             "name": "Electronics"
-          }
-        },
-        {
-          "category": {
-            "name": "Computers"
           }
         }
       ],
@@ -135,7 +273,7 @@ curl -X GET http://localhost:3000/api/catalog/ \
 
 -----------------------------------------------------------------------------------------------------
 
-2.2 Add Product
+3.2 Add Product
 
 HTTP Method: POST
 Endpoint: /catalog/
@@ -214,11 +352,13 @@ Returns:
     "categories": [
       {
         "category": {
+          "id":"uuid",
           "name": "Electronics"
         }
       },
       {
         "category": {
+          "id":"uuid",
           "name": "Computers"
         }
       }
@@ -259,7 +399,7 @@ curl -X POST http://localhost:3000/api/catalog/ \
 
 -----------------------------------------------------------------------------------------------------
 
-2.3 Update Product
+3.3 Update Product
 
 HTTP Method: PATCH
 Endpoint: /catalog/:id
@@ -324,7 +464,7 @@ curl -X PATCH http://localhost:3000/api/catalog/product-uuid \
 
 -----------------------------------------------------------------------------------------------------
 
-2.4 Delete Product
+3.4 Delete Product
 
 HTTP Method: DELETE
 Endpoint: /catalog/:id
@@ -353,7 +493,7 @@ curl -X DELETE http://localhost:3000/api/catalog/product-uuid \
 INVENTORY ENDPOINTS - Base Path: /inventory
 =====================================================================================================
 
-3.1 Get All Inventories
+4.1 Get All Inventories
 
 HTTP Method: GET
 Endpoint: /inventory/
@@ -380,7 +520,7 @@ curl -X GET http://localhost:3000/api/inventory/ \
 
 -----------------------------------------------------------------------------------------------------
 
-3.2 Get Inventory by ID
+4.2 Get Inventory by ID
 
 HTTP Method: GET
 Endpoint: /inventory/:id
@@ -408,7 +548,7 @@ curl -X GET http://localhost:3000/api/inventory/inventory-uuid \
 
 -----------------------------------------------------------------------------------------------------
 
-3.3 Add Inventory
+4.3 Add Inventory
 
 HTTP Method: POST
 Endpoint: /inventory/
@@ -443,7 +583,7 @@ curl -X POST http://localhost:3000/api/inventory/ \
 
 -----------------------------------------------------------------------------------------------------
 
-3.4 Update Inventory
+4.4 Update Inventory
 
 HTTP Method: PATCH
 Endpoint: /inventory/:id
@@ -481,7 +621,7 @@ curl -X PATCH http://localhost:3000/api/inventory/inventory-uuid \
 
 -----------------------------------------------------------------------------------------------------
 
-3.5 Update Stock Level
+4.5 Update Stock Level
 
 HTTP Method: PATCH
 Endpoint: /inventory/stock/:id
@@ -521,7 +661,7 @@ curl -X PATCH http://localhost:3000/api/inventory/stock/inventory-uuid \
 
 -----------------------------------------------------------------------------------------------------
 
-3.6 Deactivate Inventory
+4.6 Deactivate Inventory
 
 HTTP Method: DELETE
 Endpoint: /inventory/:id
@@ -546,7 +686,7 @@ curl -X DELETE http://localhost:3000/api/inventory/inventory-uuid \
 USER ENDPOINTS - Base Path: /users
 =====================================================================================================
 
-4.1 Create User
+5.1 Create User
 
 HTTP Method: POST
 Endpoint: /users/
@@ -593,7 +733,7 @@ curl -X POST http://localhost:3000/api/users/ \
 
 -----------------------------------------------------------------------------------------------------
 
-4.2 Get All Users
+5.2 Get All Users
 
 HTTP Method: GET
 Endpoint: /users/
@@ -626,7 +766,7 @@ curl -X GET http://localhost:3000/api/users/ \
 
 -----------------------------------------------------------------------------------------------------
 
-4.3 Get User by ID
+5.3 Get User by ID
 
 HTTP Method: GET
 Endpoint: /users/:id
@@ -656,7 +796,7 @@ curl -X GET http://localhost:3000/api/users/user-uuid \
 
 -----------------------------------------------------------------------------------------------------
 
-4.4 Get User by Email
+5.4 Get User by Email
 
 HTTP Method: GET
 Endpoint: /users/email/:email
@@ -684,7 +824,7 @@ curl -X GET http://localhost:3000/api/users/email/user@example.com \
 
 -----------------------------------------------------------------------------------------------------
 
-4.5 Update User
+5.5 Update User
 
 HTTP Method: PATCH
 Endpoint: /users/:id
@@ -735,7 +875,7 @@ curl -X PATCH http://localhost:3000/api/users/user-uuid \
 
 -----------------------------------------------------------------------------------------------------
 
-4.6 Deactivate User
+5.6 Deactivate User
 
 HTTP Method: DELETE
 Endpoint: /users/:id
@@ -760,7 +900,7 @@ curl -X DELETE http://localhost:3000/api/users/user-uuid \
 SHOPPING CART ENDPOINTS - Base Path: /users/:id/cart
 =====================================================================================================
 
-5.1 Get Cart
+6.1 Get Cart
 
 HTTP Method: GET
 Endpoint: /users/:id/cart
@@ -800,7 +940,7 @@ curl -X GET http://localhost:3000/api/users/user-uuid/cart \
 
 -----------------------------------------------------------------------------------------------------
 
-5.2 Add Item to Cart
+6.2 Add Item to Cart
 
 HTTP Method: POST
 Endpoint: /users/:id/cart/items
@@ -837,7 +977,7 @@ curl -X POST http://localhost:3000/api/users/user-uuid/cart/items \
 
 -----------------------------------------------------------------------------------------------------
 
-5.3 Update Cart Item
+6.3 Update Cart Item
 
 HTTP Method: PATCH
 Endpoint: /users/:id/cart/items/:variantId
@@ -874,7 +1014,7 @@ curl -X PATCH http://localhost:3000/api/users/user-uuid/cart/items/variant-uuid 
 
 -----------------------------------------------------------------------------------------------------
 
-5.4 Remove Item from Cart
+6.4 Remove Item from Cart
 
 HTTP Method: DELETE
 Endpoint: /users/:id/cart/items/:variantId
@@ -900,7 +1040,7 @@ curl -X DELETE http://localhost:3000/api/users/user-uuid/cart/items/variant-uuid
 
 -----------------------------------------------------------------------------------------------------
 
-5.5 Clear Cart
+6.5 Clear Cart
 
 HTTP Method: DELETE
 Endpoint: /users/:id/cart
@@ -927,7 +1067,7 @@ curl -X DELETE http://localhost:3000/api/users/user-uuid/cart \
 ORDER ENDPOINTS - Base Path: /orders
 =====================================================================================================
 
-6.1 Get All Orders
+7.1 Get All Orders
 
 HTTP Method: GET
 Endpoint: /orders/
@@ -964,7 +1104,7 @@ curl -X GET http://localhost:3000/api/orders/ \
 
 -----------------------------------------------------------------------------------------------------
 
-6.2 Create Order
+7.2 Create Order
 
 HTTP Method: POST
 Endpoint: /orders/
@@ -1033,7 +1173,7 @@ curl -X POST http://localhost:3000/api/orders/ \
 
 -----------------------------------------------------------------------------------------------------
 
-6.3 Get Order by ID
+7.3 Get Order by ID
 
 HTTP Method: GET
 Endpoint: /orders/:orderId
@@ -1090,7 +1230,7 @@ curl -X GET http://localhost:3000/api/orders/order-uuid \
 
 -----------------------------------------------------------------------------------------------------
 
-6.4 Get Orders by User ID
+7.4 Get Orders by User ID
 
 HTTP Method: GET
 Endpoint: /orders/user/:userId
@@ -1130,7 +1270,7 @@ curl -X GET http://localhost:3000/api/orders/user/user-uuid \
 
 -----------------------------------------------------------------------------------------------------
 
-6.5 Update Order Status
+7.5 Update Order Status
 
 HTTP Method: PATCH
 Endpoint: /orders/:orderId/status
@@ -1166,7 +1306,7 @@ curl -X PATCH http://localhost:3000/api/orders/order-uuid/status \
 
 -----------------------------------------------------------------------------------------------------
 
-6.6 Delete Order
+7.6 Delete Order
 
 HTTP Method: DELETE
 Endpoint: /orders/:orderId
@@ -1195,7 +1335,7 @@ curl -X DELETE http://localhost:3000/api/orders/order-uuid \
 PAYMENT ENDPOINTS - Base Path: /orders/:orderId/payments
 =====================================================================================================
 
-7.1 Create Payment
+8.1 Create Payment
 
 HTTP Method: POST
 Endpoint: /orders/:orderId/payments
@@ -1241,7 +1381,7 @@ curl -X POST http://localhost:3000/api/orders/order-uuid/payments \
 
 -----------------------------------------------------------------------------------------------------
 
-7.2 Get Payments by Order ID
+8.2 Get Payments by Order ID
 
 HTTP Method: GET
 Endpoint: /orders/:orderId/payments
@@ -1275,7 +1415,7 @@ curl -X GET http://localhost:3000/api/orders/order-uuid/payments \
 PRICING & DISCOUNT ENDPOINTS - Base Path: /orders
 =====================================================================================================
 
-8.1 Get Pricing by Product ID
+9.1 Get Pricing by Product ID
 
 HTTP Method: GET
 Endpoint: /orders/pricing/product/:productId
@@ -1316,7 +1456,7 @@ curl -X GET http://localhost:3000/api/orders/pricing/product/product-uuid
 
 -----------------------------------------------------------------------------------------------------
 
-8.2 Get Pricing by Product Variant ID
+9.2 Get Pricing by Product Variant ID
 
 HTTP Method: GET
 Endpoint: /orders/pricing/variant/:variantId
@@ -1352,7 +1492,7 @@ curl -X GET http://localhost:3000/api/orders/pricing/variant/variant-uuid
 
 -----------------------------------------------------------------------------------------------------
 
-8.3 Get Pricing by Category ID
+9.3 Get Pricing by Category ID
 
 HTTP Method: GET
 Endpoint: /orders/pricing/category/:categoryId
@@ -1390,7 +1530,7 @@ curl -X GET http://localhost:3000/api/orders/pricing/category/category-uuid
 
 -----------------------------------------------------------------------------------------------------
 
-8.4 Create Variant Discount
+9.4 Create Variant Discount
 
 HTTP Method: POST
 Endpoint: /orders/discount/variant
@@ -1430,7 +1570,7 @@ curl -X POST http://localhost:3000/api/orders/discount/variant \
 
 -----------------------------------------------------------------------------------------------------
 
-8.5 Create Category Discount
+9.5 Create Category Discount
 
 HTTP Method: POST
 Endpoint: /orders/discount/category
