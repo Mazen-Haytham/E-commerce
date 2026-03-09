@@ -18,6 +18,8 @@ export class ProductController {
    */
   getAllProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
+      console.log('i am here');
+      
       const products: GetAllProductsResponse[] =
         await this.productService.getAllProducts();
 

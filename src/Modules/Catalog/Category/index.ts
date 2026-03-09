@@ -21,14 +21,14 @@ const router = Router();
 router.get(
   "/",
   authenticate,
-  authorize(["ADMIN", "USER"]),
+  authorize(["ADMIN", "CUSTOMER"]),
   categoryController.getAllCategories,
 );
 
 router.get(
   "/:id",
   authenticate,
-  authorize(["ADMIN", "USER"]),
+  authorize(["ADMIN", "CUSTOMER"]),
   categoryController.getCategoryById,
 );
 

@@ -68,25 +68,25 @@ router.get(
   orderController.getPricingByCategoryId,
 );
 
-// Admin only - collection routes
+// ADMIN only - collection routes
 router.get(
   "/",
   authenticate,
-  authorize(["admin"]),
+  authorize(["ADMIN"]),
   orderController.getAllOrders,
 );
 
-// Admin only - discount creation routes
+// ADMIN only - discount creation routes
 router.post(
   "/discount/variant",
   authenticate,
-  authorize(["admin"]),
+  authorize(["ADMIN"]),
   orderController.createVariantDiscount,
 );
 router.post(
   "/discount/category",
   authenticate,
-  authorize(["admin"]),
+  authorize(["ADMIN"]),
   orderController.createCategoryDiscount,
 );
 
@@ -99,13 +99,13 @@ router.get("/:orderId", authenticate, orderController.getOrderById);
 router.patch(
   "/:orderId/status",
   authenticate,
-  authorize(["admin"]),
+  authorize(["ADMIN"]),
   orderController.updateOrderStatus,
 );
 router.delete(
   "/:orderId",
   authenticate,
-  authorize(["admin"]),
+  authorize(["ADMIN"]),
   orderController.deleteOrder,
 );
 router.post("/:orderId/payments", authenticate, orderController.createPayment);
