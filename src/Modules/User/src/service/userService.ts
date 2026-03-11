@@ -86,16 +86,56 @@ import {
   UpdateUserDTO,
   UserWithProfileAndRoles,
   UserResponseDTO,
+  cursor,
+  PaginatedResponse,
 } from "../types/userTypes.js";
 import { AppError } from "../../../../utils/AppError.js";
 import { UserMapper } from "../Dtos/userDtos.js";
 export class UserService {
   constructor(private readonly userRepo: UserRepo) {}
-  getAllUsers = async (): Promise<UsersResponse[]> => {
-    const userData: UserWithProfileAndRoles[] =
-      await this.userRepo.getAllUsers();
-    const users = UserMapper.getAllUsersDTO(userData);
-    return users;
+  getAllUsers = async (
+    limit: number,
+    cursor?: string,
+  ): Promise<PaginatedResponse> => {
+    const take: number = limit + 1;
+    let cursorData: cursor | undefined;
+    if (cursor) {
+      const decoded = JSON.parse(
+        Buffer.from(cursor, "base64").toString("utf8"),
+      );
+
+      cursorData = {
+        createdAt: new Date(decoded.createdAt),
+        id: decoded.id,
+      };
+    }
+    const userData: UserWithProfileAndRoles[] = await this.userRepo.getAllUsers(
+      take,
+      cursorData,
+    );
+    const hasMore = userData.length > limit;
+
+    const items = hasMore ? userData.slice(0, limit) : userData;
+
+    const users = UserMapper.getAllUsersDTO(items);
+
+    let nextCursor: string | null = null;
+
+    if (hasMore) {
+      const lastUser = items[items.length - 1];
+
+      nextCursor = Buffer.from(
+        JSON.stringify({
+          createdAt: lastUser.createdAt,
+          id: lastUser.id,
+        }),
+      ).toString("base64");
+    }
+
+    return {
+      data: users,
+      nextCursor,
+    };
   };
   createUser = async (
     data: createUserDTO,
@@ -103,14 +143,18 @@ export class UserService {
     if (!data.email || !data.password) {
       throw new AppError("Email and password are required", 400);
     }
-
+    console.log("i am here from service 1 ");
+    
     const user = await this.findUserByEmail(data.email);
+    console.log("i am here from service 2 ");
     if (user) throw new AppError("User Already Exists With That Email", 409);
     const password = await bcrypt.hash(data.password, 12);
+    console.log("i am here from service 3");
     const newUser: UserWithProfileAndRoles = await this.userRepo.createUser({
       ...data,
       password,
     });
+    console.log("i am here from service 4");
 
     return UserMapper.createUserDTO(newUser);
   };

@@ -91,6 +91,7 @@ export interface UserWithProfileAndRoles {
   lastName: string;
   password: string;
   phone: string;
+  createdAt:Date;
   profile?: UserProfile | null;
   roles: UserRole[];
 }
@@ -120,4 +121,13 @@ export type ErrorResponse={
   status:string,
   message:string,
   errors?:string[]
+}
+
+export interface cursor{
+  createdAt:Date,
+  id:string
+}
+export interface PaginatedResponse{
+  data:UsersResponse[],
+  nextCursor:string | null
 }

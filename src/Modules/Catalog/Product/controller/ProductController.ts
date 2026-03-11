@@ -7,6 +7,7 @@ import {
   AddProductResponse,
   UpdateProductResponse,
   DeleteProductResponse,
+  PaginatedProducts,
 } from "../types/types.js";
 
 export class ProductController {
@@ -18,14 +19,16 @@ export class ProductController {
    */
   getAllProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      console.log('i am here');
-      
-      const products: GetAllProductsResponse[] =
-        await this.productService.getAllProducts();
+      console.log("i am here");
+      const limit = Number(req.query.limit) || 20;
+      const cursor = (req.query.nextCursor as string) || undefined;
+      const products: PaginatedProducts =
+        await this.productService.getAllProducts(limit, cursor);
 
       res.status(200).json({
         status: "Success",
-        data: products,
+        data: products.data,
+        nextCursor: products.nextCursor,
       });
     } catch (error) {
       next(error);
@@ -121,7 +124,7 @@ export class ProductController {
       }
 
       const result: DeleteProductResponse =
-        await this.productService.deleteProduct(productId as string );
+        await this.productService.deleteProduct(productId as string);
 
       res.status(200).json({
         status: "Success",

@@ -8,17 +8,30 @@ import {
   UpdateProductResponse,
   DeleteProductResponse,
   GetProductByIdResponse,
+  cursorData,
 } from "../types/types.js";
 import { ProductRepo } from "./Repo.js";
 import { prisma } from "../../../../shared/prisma.js";
 export class ProductPostgreSqlRepo implements ProductRepo {
   getAllProducts = async (
     db: PrismaClient,
+    take: number,
+    cursor?: cursorData,
   ): Promise<GetAllProductsResponse[]> => {
     const products = await db.product.findMany({
       where: {
         deletedAt: null,
+        ...(cursor && {
+          OR: [
+            { createdAt: { lt: cursor.createdAt } },
+            {
+              AND: [{ createdAt: cursor.createdAt }, { id: { lt: cursor.id } }],
+            },
+          ],
+        }),
       },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take,
       select: {
         id: true,
         name: true,

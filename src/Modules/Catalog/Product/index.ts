@@ -28,8 +28,6 @@ const router = Router();
 // Routes
 router.get(
   "/",
-  authenticate,
-  authorize(["ADMIN", "CUSTOMER"]),
   productController.getAllProducts,
 );
 
