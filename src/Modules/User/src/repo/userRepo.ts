@@ -1,11 +1,31 @@
 import { create } from "node:domain";
 import { prisma } from "../../../../shared/prisma.js";
 import { UserRepo } from "../repo/Repo.js";
-import { createUserDTO, UpdateUserDTO, User } from "../types/userTypes.js";
+import {
+  createUserDTO,
+  cursor,
+  UpdateUserDTO,
+  User,
+} from "../types/userTypes.js";
 export class PrismaUserRepo implements UserRepo {
   // ADMIN
-  getAllUsers = async () => {
+  getAllUsers = async (take: number, cursor?: cursor) => {
     const userData = await prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        ...(cursor && {
+          OR: [
+            {
+              createdAt: { lt: cursor.createdAt },
+            },
+            {
+              AND: [{ createdAt: cursor.createdAt }, { id: { lt: cursor.id } }],
+            },
+          ],
+        }),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take,
       select: {
         id: true,
         email: true,
@@ -37,7 +57,7 @@ export class PrismaUserRepo implements UserRepo {
   };
   //LOGIN
   findUserByEmail = async (email: string) => {
-    const userData = await prisma.user.findUnique({
+    const userData = await prisma.user.findFirst({
       where: { email: email, deletedAt: null },
       select: {
         id: true,
@@ -46,6 +66,7 @@ export class PrismaUserRepo implements UserRepo {
         password: true,
         phone: true,
         tokenVersion: true,
+        createdAt:true,
         profile: {
           select: {
             profilePic: true,
@@ -101,6 +122,8 @@ export class PrismaUserRepo implements UserRepo {
 
   createUser = async (user: createUserDTO) => {
     const { email, firstName, lastName, phone, password } = user;
+    console.log("i am here from repo");
+    
     const newUser = await prisma.user.create({
       data: {
         email: email,

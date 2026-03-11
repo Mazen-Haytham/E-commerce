@@ -169,3 +169,13 @@ export interface GetProductByIdResponse {
   isActive: boolean;
   deletedAt: Date | null;
 }
+
+export interface cursorData{
+  createdAt:Date,
+  id:string
+}
+
+export interface PaginatedProducts{
+  data:GetAllProductsResponse[],
+  nextCursor:string | null
+}

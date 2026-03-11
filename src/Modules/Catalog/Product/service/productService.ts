@@ -6,6 +6,8 @@ import {
   UpdateProductInput,
   UpdateProductResponse,
   DeleteProductResponse,
+  cursorData,
+  PaginatedProducts
 } from "../types/types.js";
 import { prisma } from "../../../../shared/prisma.js";
 import { PrismaClient } from "@prisma/client/extension";
@@ -19,32 +21,64 @@ export class ProductService {
     private readonly inventoryApi: InventoryApi,
   ) {}
 
-  getAllProducts = async (): Promise<GetAllProductsResponse[]> => {
-    const products = await this.productRepo.getAllProducts(prisma);
+  getAllProducts = async (
+  limit: number,
+  cursor?: string,
+): Promise<PaginatedProducts> => {
 
-    // Validation: Ensure products exist
-    if (!products || products.length === 0) {
-      throw new AppError("No products found", 404);
-    }
+  const take: number = limit + 1;
 
-    // Validation: Filter only active products with variants
-    const validProducts = products.filter((product) => {
-      if (!product.isActive) {
-        return false;
-      }
-      if (!product.variants || product.variants.length === 0) {
-        return false;
-      }
-      return true;
-    });
+  // Decode cursor if exists
+  let cursorData: { createdAt: Date; id: string } | undefined;
+  if (cursor) {
+    const decoded = JSON.parse(
+      Buffer.from(cursor, "base64").toString("utf8")
+    );
 
-    // Validation: Ensure at least one valid product exists
-    if (validProducts.length === 0) {
-      throw new AppError("No active products with variants found", 404);
-    }
+    cursorData = {
+      createdAt: new Date(decoded.createdAt),
+      id: decoded.id,
+    };
+  }
 
-    return validProducts;
+  // Fetch products from repo
+  const products = await this.productRepo.getAllProducts(
+    prisma,
+    take,
+    cursorData
+  );
+
+  if (!products || products.length === 0) {
+    throw new AppError("No products found", 404);
+  }
+
+  // Filter active products with variants
+  const validProducts = products.filter(product => 
+    product.isActive && product.variants && product.variants.length > 0
+  );
+
+  if (validProducts.length === 0) {
+    throw new AppError("No active products with variants found", 404);
+  }
+
+  // Determine if there is another page
+  const hasMore = validProducts.length > limit;
+  const items = hasMore ? validProducts.slice(0, limit) : validProducts;
+
+  // Generate nextCursor
+  let nextCursor: string | null = null;
+  if (hasMore) {
+    const lastProduct = items[items.length - 1];
+    nextCursor = Buffer.from(
+      JSON.stringify({ createdAt: lastProduct.createdAt, id: lastProduct.id })
+    ).toString("base64");
+  }
+
+  return {
+    data: items,
+    nextCursor,
   };
+};
 
   addProduct = async (input: AddProductInput): Promise<AddProductResponse> => {
     // Validation: Check if product with same name already exists

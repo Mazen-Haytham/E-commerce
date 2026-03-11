@@ -1,140 +1,365 @@
-<div align="center">
+# 🛒 E-Commerce REST API
 
-# 🛒 E-Commerce Platform
+A full-featured RESTful API for an e-commerce platform, supporting product catalog management, inventory tracking, shopping carts, order processing, payments, and discount pricing.
 
-**A modular, scalable backend built with TypeScript, Express & Prisma**
-
-[![TypeScript](https://img.shields.io/badge/TypeScript-98.3%25-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-v16+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Express](https://img.shields.io/badge/Express.js-Framework-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
-[![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
-[![License](https://img.shields.io/badge/License-Apache%202.0-22c55e?style=for-the-badge)](LICENSE)
-
-</div>
+**Base URL:** `http://localhost:3000/api`
 
 ---
 
-## ✨ Features
+## 📋 Table of Contents
 
-| | Feature | Description |
-|---|---|---|
-| 🔐 | **Auth & JWT** | Secure login, registration & token-based sessions |
-| 🛍️ | **Product Catalog** | Full CRUD for products, categories & inventory |
-| 🛒 | **Shopping Cart** | Persistent cart with session management |
-| 📦 | **Order Lifecycle** | Full order creation, tracking & management |
-| 💳 | **Payment Ready** | Prepared for payment gateway integration |
-| 🔍 | **Search & Filter** | Advanced product discovery with efficient queries |
-| 👥 | **User Management** | Customer profiles & account management |
-| 📊 | **Inventory Tracking** | Real-time stock management |
-
----
-
-## 🛠️ Tech Stack
-
-- **Runtime** — Node.js v16+
-- **Language** — TypeScript
-- **Framework** — Express.js
-- **ORM** — Prisma
-- **Database** — PostgreSQL / MySQL / SQLite
-- **Auth** — JWT
+- [Authentication](#-authentication)
+- [Categories](#-categories)
+- [Product Catalog](#-product-catalog)
+- [Inventory](#-inventory)
+- [Users](#-users)
+- [Shopping Cart](#-shopping-cart)
+- [Orders](#-orders)
+- [Payments](#-payments)
+- [Pricing & Discounts](#-pricing--discounts)
+- [Error Handling](#-error-handling)
+- [Roles & Permissions](#-roles--permissions)
 
 ---
 
-## 🚀 Quick Start
+## 🔐 Authentication
 
-**1. Clone & install**
-```bash
-git clone https://github.com/Mazen-Haytham/E-commerce.git
-cd E-commerce
-npm install
+All protected endpoints require a **Bearer Token** in the `Authorization` header:
+
+```
+Authorization: Bearer <accessToken>
 ```
 
-**2. Set up your `.env`**
-```env
-DATABASE_URL="postgresql://user:password@localhost:5432/ecommerce"
-PORT=3000
-NODE_ENV=development
-JWT_SECRET=your_secret_key
-JWT_EXPIRES_IN=7d
+### POST `/auth/login`
+Authenticates a user and returns an access token. Sets an HttpOnly `refreshToken` cookie.
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
 ```
 
-**3. Set up the database**
-```bash
-npx prisma generate
-npx prisma migrate dev
-```
-
-**4. Start the dev server**
-```bash
-npm run dev
-# → http://localhost:3000
+**Response `200 OK`:**
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
 ```
 
 ---
 
-## 📁 Project Structure
+### POST `/auth/refresh`
+Generates a new access token using the `refreshToken` cookie (valid for 7 days).
 
-```
-src/
-├── modules/
-│   ├── auth/          # Authentication & JWT
-│   ├── users/         # User profiles & accounts
-│   ├── products/      # Product catalog & search
-│   ├── orders/        # Order lifecycle
-│   ├── cart/          # Shopping cart & sessions
-│   └── payments/      # Payment processing
-├── shared/            # Shared utilities & types
-└── infrastructure/    # Cross-cutting concerns
+**Response `200 OK`:**
+```json
+{
+  "accessToken": "newAccessTokenHere"
+}
 ```
 
 ---
 
-## 📡 API Endpoints
+## 📂 Categories
 
-Base URL: `http://localhost:3000/api/v1`
+| Method | Endpoint | Description | Roles |
+|--------|----------|-------------|-------|
+| `GET` | `/categories` | Get all categories | ADMIN, USER |
+| `GET` | `/categories/:id` | Get category by ID | ADMIN, USER |
+| `POST` | `/categories` | Create one or more categories | ADMIN |
+| `PATCH` | `/categories/:id` | Update a category | ADMIN |
+| `DELETE` | `/categories/:id` | Delete a category | ADMIN |
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/auth/register` | Register new user |
-| `POST` | `/auth/login` | User login |
-| `GET` | `/auth/me` | Current user info |
-| `GET` | `/products` | List all products |
-| `POST` | `/products` | Create product |
-| `PUT` | `/products/:id` | Update product |
-| `DELETE` | `/products/:id` | Delete product |
-| `GET` | `/orders` | List all orders |
-| `POST` | `/orders` | Create order |
-| `PUT` | `/orders/:id` | Update order |
+### POST `/categories` — Create Categories
 
----
+**Request Body (array):**
+```json
+[
+  { "name": "Electronics" },
+  { "name": "Clothing" }
+]
+```
 
-## 🧰 Scripts
-
-```bash
-npm run dev          # Start dev server with hot reload
-npm run build        # Build for production
-npm start            # Start production server
-npm test             # Run tests
-npm run lint         # Lint code
-npm run prisma:studio  # Open Prisma Studio (DB GUI)
+**Response `201 Created`:**
+```json
+{
+  "status": "Success",
+  "data": { "count": 2 }
+}
 ```
 
 ---
 
-## 🤝 Contributing
+## 📦 Product Catalog
 
-1. Fork the repo
-2. Create a branch: `git checkout -b feature/your-feature`
-3. Commit: `git commit -m 'Add your feature'`
-4. Push: `git push origin feature/your-feature`
-5. Open a Pull Request
+| Method | Endpoint | Description | Roles |
+|--------|----------|-------------|-------|
+| `GET` | `/catalog/` | Get all active products with variants | ADMIN, USER |
+| `POST` | `/catalog/` | Create a new product | ADMIN, SUPPLIER |
+| `PATCH` | `/catalog/:id` | Update a product and/or its variants | ADMIN, SUPPLIER |
+| `DELETE` | `/catalog/:id` | Soft-delete a product | ADMIN, SUPPLIER |
+
+### POST `/catalog/` — Add Product
+
+Products support multiple variants (e.g. different sizes/colors), each with their own SKU, pricing, images, and inventory associations.
+
+**Request Body:**
+```json
+{
+  "name": "Gaming Laptop",
+  "producer": "TechBrand",
+  "categories": ["category-uuid-1", "category-uuid-2"],
+  "variants": [
+    {
+      "sku": "LAPTOP-001-16GB",
+      "color": "Space Gray",
+      "size": "15.6 inch",
+      "weight": "1.8kg",
+      "price": 1299.99,
+      "images": [
+        {
+          "url": "https://example.com/laptop-gray-1.jpg",
+          "altText": "Gaming laptop space gray",
+          "isPrimary": true
+        }
+      ],
+      "inventories": [
+        { "id": "inventory-uuid", "stockLevel": 50, "restock": 10 }
+      ]
+    }
+  ]
+}
+```
+
+**Response `201 Created`:**
+```json
+{
+  "status": "Success",
+  "data": {
+    "id": "product-uuid",
+    "name": "Gaming Laptop",
+    "producer": "TechBrand",
+    "variants": [
+      { "productId": "product-uuid", "id": "variant-uuid-1" }
+    ]
+  }
+}
+```
 
 ---
 
-<div align="center">
+## 🏭 Inventory
 
-Made by [Mazen Haytham](https://github.com/Mazen-Haytham) &nbsp;·&nbsp; Apache 2.0 License
+| Method | Endpoint | Description | Roles |
+|--------|----------|-------------|-------|
+| `GET` | `/inventory/` | Get all inventory locations | ADMIN |
+| `GET` | `/inventory/:id` | Get inventory by ID | ADMIN |
+| `POST` | `/inventory/` | Create an inventory location | ADMIN |
+| `PATCH` | `/inventory/:id` | Update an inventory location | ADMIN |
+| `PATCH` | `/inventory/stock/:id` | Update stock level for a product variant | ADMIN, SUPPLIER |
+| `DELETE` | `/inventory/:id` | Deactivate an inventory location | ADMIN |
 
-**⭐ Star this repo if you find it useful!**
+### PATCH `/inventory/stock/:id` — Update Stock Level
 
-</div>
+**Request Body:**
+```json
+{
+  "productVariantId": "variant-uuid",
+  "inventoryId": "inventory-uuid",
+  "stockLevel": 75
+}
+```
+
+---
+
+## 👤 Users
+
+| Method | Endpoint | Description | Roles |
+|--------|----------|-------------|-------|
+| `POST` | `/users/` | Create a new user account | Public |
+| `GET` | `/users/` | Get all users | ADMIN |
+| `GET` | `/users/:id` | Get user by ID | ADMIN |
+| `GET` | `/users/email/:email` | Get user by email | ADMIN |
+| `PATCH` | `/users/:id` | Update user info | ADMIN, CUSTOMER |
+| `DELETE` | `/users/:id` | Deactivate a user | ADMIN, CUSTOMER |
+
+### POST `/users/` — Register User
+
+```json
+{
+  "email": "newuser@example.com",
+  "firstName": "John",
+  "lastName": "Doe",
+  "password": "SecurePassword123!",
+  "phone": "+1234567890",
+  "profilePic": "https://example.com/profile.jpg"
+}
+```
+
+**Response `201 Created`:** Returns the created user with role `["CUSTOMER"]`.
+
+---
+
+## 🛍️ Shopping Cart
+
+Base path: `/users/:id/cart`
+
+| Method | Endpoint | Description | Roles |
+|--------|----------|-------------|-------|
+| `GET` | `/users/:id/cart` | Get user's cart | ADMIN, CUSTOMER |
+| `POST` | `/users/:id/cart/items` | Add item to cart | ADMIN, CUSTOMER |
+| `PATCH` | `/users/:id/cart/items/:variantId` | Update item quantity | ADMIN, CUSTOMER |
+| `DELETE` | `/users/:id/cart/items/:variantId` | Remove item from cart | ADMIN, CUSTOMER |
+| `DELETE` | `/users/:id/cart` | Clear entire cart | ADMIN, CUSTOMER |
+
+### GET `/users/:id/cart` — View Cart
+
+**Response `200 OK`:**
+```json
+{
+  "status": "Success",
+  "data": {
+    "userId": "user-uuid",
+    "items": [
+      {
+        "productVariantId": "variant-uuid-1",
+        "quantity": 2,
+        "price": 49.99,
+        "subtotal": 99.98
+      }
+    ],
+    "totalPrice": 129.97
+  }
+}
+```
+
+---
+
+## 📋 Orders
+
+| Method | Endpoint | Description | Roles |
+|--------|----------|-------------|-------|
+| `GET` | `/orders/` | Get all orders | ADMIN |
+| `POST` | `/orders/` | Create a new order | Authenticated |
+| `GET` | `/orders/:orderId` | Get order by ID | Authenticated |
+| `GET` | `/orders/user/:userId` | Get orders by user | Authenticated |
+| `PATCH` | `/orders/:orderId/status` | Update order status | Authenticated |
+| `DELETE` | `/orders/:orderId` | Soft-delete an order | Authenticated |
+
+### Order Statuses
+`pending` → `confirmed` → `packed` → `shipped` → `delivered` → `cancelled`
+
+### POST `/orders/` — Create Order
+
+**Request Body:**
+```json
+{
+  "userId": "user-uuid",
+  "items": [
+    { "productVariantId": "variant-uuid-1", "quantity": 2, "unitPrice": 49.99 },
+    { "productVariantId": "variant-uuid-2", "quantity": 1, "unitPrice": 29.99 }
+  ],
+  "totalPrice": 129.97
+}
+```
+
+---
+
+## 💳 Payments
+
+Base path: `/orders/:orderId/payments`
+
+| Method | Endpoint | Description | Roles |
+|--------|----------|-------------|-------|
+| `POST` | `/orders/:orderId/payments` | Create a payment record | Authenticated |
+| `GET` | `/orders/:orderId/payments` | Get payments for an order | Authenticated |
+
+### POST `/orders/:orderId/payments` — Create Payment
+
+**Request Body:**
+```json
+{
+  "orderId": "order-uuid",
+  "paymentMethodId": "method-uuid",
+  "amount": 129.97,
+  "transactionId": "txn_123456789"
+}
+```
+
+**Response `201 Created`:** Returns payment record with `status: "pending"`.
+
+---
+
+## 🏷️ Pricing & Discounts
+
+| Method | Endpoint | Description | Roles |
+|--------|----------|-------------|-------|
+| `GET` | `/orders/pricing/product/:productId` | Get pricing for all variants of a product | Public |
+| `GET` | `/orders/pricing/variant/:variantId` | Get pricing for a specific variant | Public |
+| `GET` | `/orders/pricing/category/:categoryId` | Get pricing for all products in a category | Public |
+| `POST` | `/orders/discount/variant` | Create a discount for a product variant | ADMIN |
+| `POST` | `/orders/discount/category` | Create a discount for an entire category | ADMIN |
+
+### POST `/orders/discount/variant` — Create Variant Discount
+
+**Request Body:**
+```json
+{
+  "productVariantId": "variant-uuid",
+  "discountType": "percentage",
+  "discountValue": 15
+}
+```
+
+> **Discount types:** `percentage` (0–100) or `fixed_amount` (currency value)
+
+### POST `/orders/discount/category` — Create Category Discount
+
+**Request Body:**
+```json
+{
+  "categoryId": "category-uuid",
+  "discountType": "percentage",
+  "discountValue": 20
+}
+```
+
+---
+
+## ❌ Error Handling
+
+All error responses follow this format:
+
+```json
+{
+  "status": "Error",
+  "message": "Error description",
+  "data": {
+    "details": "Additional error information if available"
+  }
+}
+```
+
+| Status Code | Meaning |
+|-------------|---------|
+| `200` | OK — Request succeeded |
+| `201` | Created — Resource successfully created |
+| `400` | Bad Request — Invalid request data |
+| `401` | Unauthorized — Missing or invalid token |
+| `403` | Forbidden — Insufficient permissions |
+| `404` | Not Found — Resource not found |
+| `500` | Internal Server Error |
+
+---
+
+## 🔑 Roles & Permissions
+
+| Role | Access Level |
+|------|-------------|
+| **ADMIN** | Full access to all endpoints |
+| **SUPPLIER** | Can manage products and update inventory stock |
+| **CUSTOMER / USER** | Can browse products, manage own cart, and place orders |
+
+> Access tokens have a limited lifetime. Use `POST /auth/refresh` to renew them. Refresh tokens are valid for **7 days**.

@@ -1,6 +1,6 @@
-import { createUserDTO, UpdateUserDTO } from "../types/userTypes.js";
+import { createUserDTO, cursor, UpdateUserDTO } from "../types/userTypes.js";
 export interface UserRepo {
-  getAllUsers(): any;
+  getAllUsers(limit:number,nextCursor?:cursor): any;
   findUserByEmail(email: string): any;
   findUserById(userId: string): any;
   createUser(user: createUserDTO): any;

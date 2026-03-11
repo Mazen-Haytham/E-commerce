@@ -5,6 +5,8 @@ import { UserEmailParams, UserParams } from "../types/userTypes.js";
 export class UserController {
   constructor(private readonly userService: UserService) {}
   createUser = async (req: Request, res: Response, next: NextFunction) => {
+    console.log("iam here");
+    
     try {
       const { email, firstName, lastName, password, phone, profilePic } =
         req.body;
@@ -28,8 +30,14 @@ export class UserController {
   };
   getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const allUsers = await this.userService.getAllUsers();
-      return res.status(200).send(allUsers);
+      const limit: number = Number(req.query.limit) || 20;
+      const cursor: string | undefined =
+        (req.query.nextCursor as string) || undefined;
+      const allUsers = await this.userService.getAllUsers(limit, cursor);
+      return res.status(200).send({
+        data: allUsers.data,
+        nextCursor: allUsers.nextCursor,
+      });
     } catch (err) {
       next(err);
     }

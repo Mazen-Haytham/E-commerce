@@ -8,10 +8,11 @@ import {
   UpdateProductResponse,
   DeleteProductResponse,
   GetProductByIdResponse,
+  cursorData,
 } from "../types/types.js";
 
 export interface ProductRepo {
-  getAllProducts(db: PrismaClient): Promise<GetAllProductsResponse[]>;
+  getAllProducts(db: PrismaClient,take:number,cursor?:cursorData): Promise<GetAllProductsResponse[]>;
   getProductById(productId: string): Promise<GetProductByIdResponse | null>;
   addProduct(
     AddProductInput: AddProductInput,
