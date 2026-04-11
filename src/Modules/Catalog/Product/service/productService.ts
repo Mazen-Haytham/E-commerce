@@ -7,8 +7,9 @@ import {
   UpdateProductResponse,
   DeleteProductResponse,
   cursorData,
-  PaginatedProducts
+  PaginatedProducts,
 } from "../types/types.js";
+import { redis } from "../../../../shared/redis.js";
 import { prisma } from "../../../../shared/prisma.js";
 import { PrismaClient } from "@prisma/client/extension";
 import { addProductVariantInInventoryInput } from "../../../Inventory/types/types.js";
@@ -20,65 +21,84 @@ export class ProductService {
     private readonly productRepo: ProductRepo,
     private readonly inventoryApi: InventoryApi,
   ) {}
-
+  getCache = async (cacheKey: string) => {
+    try {
+      const result = await redis.get(cacheKey);
+      return result;
+    } catch (error) {
+      console.error(`Redis is Down (ignored) `, error);
+      return null;
+    }
+  };
+  setCache = async (cacheKey: string,data:any,ttl:number=60) => {
+    try {
+       await redis.set(cacheKey,JSON.stringify(data),"EX",ttl);
+    } catch (error) {
+      console.error(`Redis is Down (ignored) `, error);
+    }
+  };
+  
   getAllProducts = async (
-  limit: number,
-  cursor?: string,
-): Promise<PaginatedProducts> => {
+    limit: number,
+    cursor?: string,
+  ): Promise<PaginatedProducts> => {
+    const take: number = limit + 1;
 
-  const take: number = limit + 1;
+    // Decode cursor if exists
+    let cursorData: { createdAt: Date; id: string } | undefined;
+    if (cursor) {
+      const decoded = JSON.parse(
+        Buffer.from(cursor, "base64").toString("utf8"),
+      );
 
-  // Decode cursor if exists
-  let cursorData: { createdAt: Date; id: string } | undefined;
-  if (cursor) {
-    const decoded = JSON.parse(
-      Buffer.from(cursor, "base64").toString("utf8")
+      cursorData = {
+        createdAt: new Date(decoded.createdAt),
+        id: decoded.id,
+      };
+    }
+
+    // Fetch products from repo
+    const products = await this.productRepo.getAllProducts(
+      prisma,
+      take,
+      cursorData,
     );
 
-    cursorData = {
-      createdAt: new Date(decoded.createdAt),
-      id: decoded.id,
+    if (!products || products.length === 0) {
+      throw new AppError("No products found", 404);
+    }
+
+    // Filter active products with variants
+    const validProducts = products.filter(
+      (product) =>
+        product.isActive && product.variants && product.variants.length > 0,
+    );
+
+    if (validProducts.length === 0) {
+      throw new AppError("No active products with variants found", 404);
+    }
+
+    // Determine if there is another page
+    const hasMore = validProducts.length > limit;
+    const items = hasMore ? validProducts.slice(0, limit) : validProducts;
+
+    // Generate nextCursor
+    let nextCursor: string | null = null;
+    if (hasMore) {
+      const lastProduct = items[items.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({
+          createdAt: lastProduct.createdAt,
+          id: lastProduct.id,
+        }),
+      ).toString("base64");
+    }
+
+    return {
+      data: items,
+      nextCursor,
     };
-  }
-
-  // Fetch products from repo
-  const products = await this.productRepo.getAllProducts(
-    prisma,
-    take,
-    cursorData
-  );
-
-  if (!products || products.length === 0) {
-    throw new AppError("No products found", 404);
-  }
-
-  // Filter active products with variants
-  const validProducts = products.filter(product => 
-    product.isActive && product.variants && product.variants.length > 0
-  );
-
-  if (validProducts.length === 0) {
-    throw new AppError("No active products with variants found", 404);
-  }
-
-  // Determine if there is another page
-  const hasMore = validProducts.length > limit;
-  const items = hasMore ? validProducts.slice(0, limit) : validProducts;
-
-  // Generate nextCursor
-  let nextCursor: string | null = null;
-  if (hasMore) {
-    const lastProduct = items[items.length - 1];
-    nextCursor = Buffer.from(
-      JSON.stringify({ createdAt: lastProduct.createdAt, id: lastProduct.id })
-    ).toString("base64");
-  }
-
-  return {
-    data: items,
-    nextCursor,
   };
-};
 
   addProduct = async (input: AddProductInput): Promise<AddProductResponse> => {
     // Validation: Check if product with same name already exists
@@ -180,13 +200,20 @@ export class ProductService {
     if (!productId || productId.trim() === "") {
       throw new AppError("Product ID is required", 400);
     }
-
+    const cacheKey = `product:${productId}`;
+    const cachedProduct = await this.getCache(cacheKey);
+    if(cachedProduct){
+      console.log(`Cache Hit 🔥`);
+      return JSON.parse(cachedProduct);
+    }
     const product = await this.productRepo.getProductById(productId);
 
     if (!product) {
       throw new AppError("Product not found", 404);
     }
+    console.log(`Cache Miss 💔`);
 
+    await this.setCache(cacheKey,product);
     return product;
   };
 
@@ -194,7 +221,12 @@ export class ProductService {
     if (!variantId || variantId.trim() === "") {
       throw new AppError("Product Variant ID is required", 400);
     }
-
+    const cacheKey = `productVariant:${variantId}`;
+    const cachedProductVariant = await this.getCache(cacheKey)
+    if (cachedProductVariant) {
+      console.log(`Cache Hit 🔥`);
+      return JSON.parse(cachedProductVariant);
+    }
     const variant = await prisma.productVariant.findUnique({
       where: { id: variantId },
     });
@@ -202,7 +234,8 @@ export class ProductService {
     if (!variant) {
       throw new AppError("Product variant not found", 404);
     }
-
+    console.log(`Cache Miss 💔`);
+    await this.setCache(cacheKey,variant);
     return variant;
   };
 }
