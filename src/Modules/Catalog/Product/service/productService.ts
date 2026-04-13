@@ -30,14 +30,22 @@ export class ProductService {
       return null;
     }
   };
-  setCache = async (cacheKey: string,data:any,ttl:number=60) => {
+  setCache = async (cacheKey: string,data: any, ttl: number = 60) => {
     try {
-       await redis.set(cacheKey,JSON.stringify(data),"EX",ttl);
+      await redis.set(cacheKey, JSON.stringify(data), "EX", ttl);
     } catch (error) {
       console.error(`Redis is Down (ignored) `, error);
     }
   };
-  
+  deleteCache = async (cacheKey: string) => {
+    try {
+      await redis.del(cacheKey);
+    } catch (error) {
+      console.error(`Redis Delete failed ${error}`);
+      return null;
+    }
+  };
+  sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   getAllProducts = async (
     limit: number,
     cursor?: string,
@@ -167,7 +175,7 @@ export class ProductService {
     if (!existingProduct || existingProduct.deletedAt !== null) {
       throw new AppError("Product not found or has been deleted", 404);
     }
-
+    const productCacheKey = `product:${input.productId}`;
     // Validation: Ensure at least one field is provided for update
     if (
       input.name === undefined &&
@@ -177,8 +185,18 @@ export class ProductService {
     ) {
       throw new AppError("At least one field must be provided for update", 400);
     }
+    const result = await this.productRepo.updateProduct(input, prisma);
+    await this.deleteCache(productCacheKey);
+    const variants = input.variants;
+    if (variants) {
+      await Promise.all(
+        variants.map((variant) =>
+          this.deleteCache(`productVariant:${variant.variantId}`),
+        ),
+      );
+    }
 
-    return await this.productRepo.updateProduct(input, prisma);
+    return result;
   };
 
   deleteProduct = async (productId: string): Promise<DeleteProductResponse> => {
@@ -202,18 +220,48 @@ export class ProductService {
     }
     const cacheKey = `product:${productId}`;
     const cachedProduct = await this.getCache(cacheKey);
-    if(cachedProduct){
+    if (cachedProduct) {
       console.log(`Cache Hit 🔥`);
       return JSON.parse(cachedProduct);
     }
+    console.log(`Cache Miss 💔`);
+    const lockKey = `lock:${cacheKey}`;
+    const lockAcquired = await redis.set(lockKey, "1", "NX", "EX", 5);
+    if (lockAcquired) {
+      try {
+        const product = await this.productRepo.getProductById(productId);
+
+        if (!product) {
+          throw new AppError("Product not found", 404);
+        }
+        await this.setCache(cacheKey, product, 180);
+        return product;
+      } finally {
+        await this.deleteCache(lockKey);
+      }
+    }
+
+    // 3. Retry mechanism (wait for leader to populate cache)
+    for (let i = 0; i < 5; i++) {
+      await this.sleep(100);
+
+      const retryCache = await this.getCache(cacheKey);
+
+      if (retryCache) {
+        console.log("Cache filled by another request 🎉");
+        return JSON.parse(retryCache);
+      }
+    }
+
+    // 4. Fallback (rare edge case)
+    console.log("Fallback → DB hit");
+
     const product = await this.productRepo.getProductById(productId);
 
     if (!product) {
       throw new AppError("Product not found", 404);
     }
-    console.log(`Cache Miss 💔`);
 
-    await this.setCache(cacheKey,product);
     return product;
   };
 
@@ -222,7 +270,7 @@ export class ProductService {
       throw new AppError("Product Variant ID is required", 400);
     }
     const cacheKey = `productVariant:${variantId}`;
-    const cachedProductVariant = await this.getCache(cacheKey)
+    const cachedProductVariant = await this.getCache(cacheKey);
     if (cachedProductVariant) {
       console.log(`Cache Hit 🔥`);
       return JSON.parse(cachedProductVariant);
@@ -235,7 +283,7 @@ export class ProductService {
       throw new AppError("Product variant not found", 404);
     }
     console.log(`Cache Miss 💔`);
-    await this.setCache(cacheKey,variant);
+    await this.setCache(cacheKey, variant);
     return variant;
   };
 }
