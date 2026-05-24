@@ -3,7 +3,7 @@ import * as RedisModule from "ioredis";
 const Redis = (RedisModule as any).default ?? RedisModule;
 
 export const redis = new Redis({
-  host: "127.0.0.1",
+  host: "localhost",
   port: 6379,
 });
 

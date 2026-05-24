@@ -130,30 +130,29 @@ export class InventoryService {
 
   addProductVariantInInventory = async (
     input: addProductVariantInInventoryInput[],
+    db: PrismaClient = prisma as unknown as PrismaClient,
   ): Promise<addProductVariantInInventoryInput[]> => {
-    return await prisma.$transaction(async (tx) => {
-      const success: addProductVariantInInventoryInput[] = [];
+    const success: addProductVariantInInventoryInput[] = [];
 
-      for (const productStock of input) {
-        const inv: Inventory | null = await this.findInventoryByID(
-          productStock.inventoryId,
-          tx as PrismaClient,
-        );
-        if (!inv) {
-          throw new AppError("There is No Inventory With That Id", 400);
-        }
-
-        const newProductStock =
-          await this.inventoryRepo.addProductVariantInInventoryInput(
-            productStock,
-            tx as PrismaClient,
-          );
-
-        success.push(newProductStock);
+    for (const productStock of input) {
+      const inv: Inventory | null = await this.findInventoryByID(
+        productStock.inventoryId,
+        db,
+      );
+      if (!inv) {
+        throw new AppError("There is No Inventory With That Id", 400);
       }
 
-      return success;
-    });
+      const newProductStock =
+        await this.inventoryRepo.addProductVariantInInventoryInput(
+          productStock,
+          db,
+        );
+
+      success.push(newProductStock);
+    }
+
+    return success;
   };
 
   getAllInventories = async (

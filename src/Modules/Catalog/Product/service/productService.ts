@@ -30,7 +30,7 @@ export class ProductService {
       return null;
     }
   };
-  setCache = async (cacheKey: string,data: any, ttl: number = 60) => {
+  setCache = async (cacheKey: string, data: any, ttl: number = 60) => {
     try {
       await redis.set(cacheKey, JSON.stringify(data), "EX", ttl);
     } catch (error) {
@@ -50,10 +50,98 @@ export class ProductService {
     limit: number,
     cursor?: string,
   ): Promise<PaginatedProducts> => {
-    const take: number = limit + 1;
+    const take = limit + 1;
 
-    // Decode cursor if exists
+    const listCacheKey = `products:list:${cursor || "start"}:${limit}`;
+
+    // =========================
+    // 1. TRY CACHE (LIST OF IDS)
+    // =========================
+    const cachedIdsRaw = await redis.get(listCacheKey);
+
+    if (cachedIdsRaw) {
+      console.log("[CACHE] HIT list");
+
+      const ids: string[] = JSON.parse(cachedIdsRaw);
+
+      const keys = ids.map((id) => `product:${id}`);
+
+      // =========================
+      // 2. BULK FETCH PRODUCTS
+      // =========================
+      const cachedProducts = await redis.mget(keys);
+
+      let products: any[] = [];
+      let missingIds: string[] = [];
+
+      cachedProducts.forEach((p: any, index: number) => {
+        if (p) {
+          products.push(JSON.parse(p));
+        } else {
+          missingIds.push(ids[index]);
+        }
+      });
+
+      // =========================
+      // 3. IF PARTIAL MISS → REFILL
+      // =========================
+      if (missingIds.length > 0) {
+        console.log("[CACHE] PARTIAL MISS → DB fallback for missing");
+
+        const missingProducts =
+          await this.productRepo.getProductsByIds(missingIds);
+
+        // cache missing (PIPELINE)
+        const pipeline = redis.pipeline();
+
+        missingProducts.forEach((p: any) => {
+          pipeline.set(`product:${p.id}`, JSON.stringify(p), "EX", 180);
+        });
+
+        await pipeline.exec();
+
+        products = [...products, ...missingProducts];
+      }
+
+      // =========================
+      // 4. RESTORE ORDER
+      // =========================
+      const productMap = new Map(products.map((p) => [p.id, p]));
+
+      const ordered = ids.map((id) => productMap.get(id)).filter(Boolean);
+
+      // =========================
+      // 5. PAGINATION
+      // =========================
+      const hasMore = ordered.length > limit;
+      const items = hasMore ? ordered.slice(0, limit) : ordered;
+
+      let nextCursor: string | null = null;
+
+      if (hasMore) {
+        const last = items[items.length - 1];
+
+        nextCursor = Buffer.from(
+          JSON.stringify({
+            createdAt: last.createdAt,
+            id: last.id,
+          }),
+        ).toString("base64");
+      }
+
+      return {
+        data: items,
+        nextCursor,
+      };
+    }
+
+    // =========================
+    // 6. CACHE MISS → DB FALLBACK
+    // =========================
+    console.log("[CACHE] MISS list → DB");
+
     let cursorData: { createdAt: Date; id: string } | undefined;
+
     if (cursor) {
       const decoded = JSON.parse(
         Buffer.from(cursor, "base64").toString("utf8"),
@@ -65,7 +153,6 @@ export class ProductService {
       };
     }
 
-    // Fetch products from repo
     const products = await this.productRepo.getAllProducts(
       prisma,
       take,
@@ -76,28 +163,45 @@ export class ProductService {
       throw new AppError("No products found", 404);
     }
 
-    // Filter active products with variants
     const validProducts = products.filter(
-      (product) =>
-        product.isActive && product.variants && product.variants.length > 0,
+      (p) => p.isActive && p.variants?.length > 0,
     );
 
     if (validProducts.length === 0) {
       throw new AppError("No active products with variants found", 404);
     }
 
-    // Determine if there is another page
     const hasMore = validProducts.length > limit;
     const items = hasMore ? validProducts.slice(0, limit) : validProducts;
 
-    // Generate nextCursor
+    // =========================
+    // 7. CACHE EVERYTHING
+    // =========================
+
+    const ids = items.map((p) => p.id);
+
+    await redis.set(listCacheKey, JSON.stringify(ids), "EX", 60);
+
+    const pipeline = redis.pipeline();
+
+    items.forEach((p) => {
+      pipeline.set(`product:${p.id}`, JSON.stringify(p), "EX", 180);
+    });
+
+    await pipeline.exec();
+
+    // =========================
+    // 8. NEXT CURSOR
+    // =========================
     let nextCursor: string | null = null;
+
     if (hasMore) {
-      const lastProduct = items[items.length - 1];
+      const last = items[items.length - 1];
+
       nextCursor = Buffer.from(
         JSON.stringify({
-          createdAt: lastProduct.createdAt,
-          id: lastProduct.id,
+          createdAt: last.createdAt,
+          id: last.id,
         }),
       ).toString("base64");
     }
@@ -136,8 +240,9 @@ export class ProductService {
       // Add product to database
       const product: AddProductResponse = await this.productRepo.addProduct(
         input,
-        tx as PrismaClient,
+        tx,
       );
+      console.log(product);
 
       // Map product variants to inventory input
       const inventoryInputs: addProductVariantInInventoryInput[] = [];
@@ -156,12 +261,27 @@ export class ProductService {
           });
         }
       }
+      console.log(inventoryInputs);
 
       // Add variants to inventory if there are inventory entries
-      if (inventoryInputs.length > 0) {
-        await this.inventoryApi.addProductVariantInInventory(inventoryInputs);
+      try {
+        // ... existing code ...
+        if (inventoryInputs.length > 0) {
+          await this.inventoryApi.addProductVariantInInventory(
+            inventoryInputs,
+            tx,
+          );
+        }
+      } catch (error) {
+        console.error("Transaction error details:", error);
+        throw error;
       }
-
+      try {
+        await redis.delPattern("products:list:*");
+      } catch (redisError) {
+        console.error("❌ Redis error (ignoring):", redisError);
+        // Don't throw - redis failure shouldn't rollback transaction
+      }
       return product;
     });
   };
@@ -195,7 +315,7 @@ export class ProductService {
         ),
       );
     }
-
+    await redis.delPattern("products:list:*");
     return result;
   };
 
@@ -210,8 +330,11 @@ export class ProductService {
     if (existingProduct.deletedAt !== null) {
       throw new AppError("Product is already deleted", 410);
     }
-
-    return await this.productRepo.deleteProduct(productId, prisma);
+    const cacheKey = `product:${productId}`;
+    const result = await this.productRepo.deleteProduct(productId, prisma);
+    await this.deleteCache(cacheKey);
+    await redis.delPattern("products:list:*");
+    return result;
   };
 
   getProductById = async (productId: string) => {
@@ -283,7 +406,7 @@ export class ProductService {
       throw new AppError("Product variant not found", 404);
     }
     console.log(`Cache Miss 💔`);
-    await this.setCache(cacheKey, variant);
+    await this.setCache(cacheKey, variant, 180);
     return variant;
   };
 }
