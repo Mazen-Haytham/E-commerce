@@ -52,9 +52,6 @@ export interface getProductVariantStockFromInventoryInput{
 export interface getProductVariantStockFromInventoryResponse{
     productVariantId:string,
     inventoryId:string;
-    inventory:{
-        location:string;
-    }
     stockLevel:number
 }
 

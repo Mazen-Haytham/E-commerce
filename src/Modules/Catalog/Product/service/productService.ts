@@ -398,9 +398,7 @@ export class ProductService {
       console.log(`Cache Hit 🔥`);
       return JSON.parse(cachedProductVariant);
     }
-    const variant = await prisma.productVariant.findUnique({
-      where: { id: variantId },
-    });
+    const variant = await this.productRepo.getProductVariantById(variantId);
 
     if (!variant) {
       throw new AppError("Product variant not found", 404);

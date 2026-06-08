@@ -46,5 +46,20 @@ export interface Repo {
     db: PrismaClient,
     data?: findInventoryByNameAndLocationInput,
   ): Promise<Inventory[]>;
-  getProductVariant(variantId:string,db:PrismaClient):Promise<getProductVariantStockFromInventoryResponse[]>
+  getProductVariant(
+    variantId: string,
+    db: PrismaClient,
+  ): Promise<getProductVariantStockFromInventoryResponse[]>;
+  getTotalProductVariantStockLevel(
+    variantId: string,
+    db: PrismaClient,
+  ): Promise<number>;
+  getTotalProductVariantStockLevelWithLock(
+    variantId: string,
+    db: PrismaClient,
+  ): Promise<number>;
+  getProductVariantStocksForDecrement(
+    variantId: string,
+    db: PrismaClient,
+  ): Promise<addProductVariantInInventoryInput[]>;
 }

@@ -171,17 +171,60 @@ export class PrismaInventory implements Repo {
         where: {
           productVariantId: variantId,
         },
+        _sum: {
+          stockLevel: true,
+        },
         select: {
           productVariantId: true,
           inventoryId: true,
           stockLevel: true,
-          inventory: {
-            select: {
-              location: true,
-            },
-          },
         },
       });
     return stocks;
+  };
+
+  getTotalProductVariantStockLevel = async (
+    variantId: string,
+    db: PrismaClient,
+  ): Promise<number> => {
+    const result = await db.productStock.aggregate({
+      where: {
+        productVariantId: variantId,
+      },
+      _sum: {
+        stockLevel: true,
+      },
+    });
+    return result._sum.stockLevel || 0;
+  };
+
+  getTotalProductVariantStockLevelWithLock = async (
+    variantId: string,
+    db: PrismaClient,
+  ): Promise<number> => {
+    const stockResult = await db.$queryRaw<Array<{ total_stock: number }>>`
+      SELECT COALESCE(SUM("stockLevel"), 0)::integer as total_stock
+      FROM "inventory"."ProductStock"
+      WHERE "productVariantId" = ${variantId}
+      FOR UPDATE
+    `;
+
+    return stockResult[0]?.total_stock || 0;
+  };
+
+  getProductVariantStocksForDecrement = async (
+    variantId: string,
+    db: PrismaClient,
+  ): Promise<addProductVariantInInventoryInput[]> => {
+    const allInventoryStocks: addProductVariantInInventoryInput[] =
+      await db.productStock.findMany({
+        where: {
+          productVariantId: variantId,
+        },
+        orderBy: {
+          inventoryId: "asc",
+        },
+      });
+    return allInventoryStocks;
   };
 }
