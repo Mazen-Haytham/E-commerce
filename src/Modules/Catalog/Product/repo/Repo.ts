@@ -30,4 +30,5 @@ export interface ProductRepo {
   checkSKUsExist(
     skus: string[],
   ): Promise<{ sku: string; productName: string }[]>;
+  getProductsByIds(ids:string[]):Promise<any>;
 }

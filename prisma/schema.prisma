@@ -11,7 +11,7 @@ datasource db {
 
 model User {
   id           String       @id @default(uuid())
-  email        String     
+  email        String
   firstName    String
   lastName     String
   password     String
@@ -140,7 +140,7 @@ model Category {
   id        String            @id @default(uuid())
   name      String            @unique
   createdAt DateTime          @default(now())
-  updateAt  DateTime          @updatedAt
+  updatedAt DateTime          @updatedAt
   deletedAt DateTime?
   pricing   Pricing[]
   products  ProductCategory[]
@@ -183,7 +183,7 @@ model Inventory {
   location  String
   deletedAt DateTime?
   createdAt DateTime       @default(now())
-  updateAt  DateTime       @updatedAt
+  updatedAt DateTime       @updatedAt
   stock     ProductStock[]
 
   @@unique([name, location])
@@ -196,9 +196,9 @@ model ProductStock {
   stockLevel       Int            @default(0)
   restockAlert     Int            @default(0)
   createdAt        DateTime       @default(now())
-  updateAt         DateTime       @updatedAt
-  inventory        Inventory      @relation(fields: [inventoryId], references: [id])
-  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  updatedAt        DateTime       @updatedAt
+  inventory        Inventory      @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
 
   @@id([productVariantId, inventoryId])
   @@schema("inventory")

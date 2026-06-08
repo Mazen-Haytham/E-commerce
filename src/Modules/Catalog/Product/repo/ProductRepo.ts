@@ -244,4 +244,16 @@ export class ProductPostgreSqlRepo implements ProductRepo {
       productName: v.product.name,
     }));
   };
+  getProductsByIds = async (ids: string[]) => {
+    return prisma.product.findMany({
+      where: {
+        id: {
+          in: ids,
+        },
+      },
+      include: {
+        variants: true,
+      },
+    });
+  };
 }
