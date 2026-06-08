@@ -256,4 +256,27 @@ export class ProductPostgreSqlRepo implements ProductRepo {
       },
     });
   };
+
+  getProductVariantById = async (variantId: string): Promise<any> => {
+    const variant = await prisma.productVariant.findUnique({
+      where: { id: variantId },
+      select: {
+        id: true,
+        productId: true,
+        sku: true,
+        color: true,
+        size: true,
+        weight: true,
+        price: true,
+        stock: {
+          select: {
+            stockLevel: true,
+            inventoryId: true,
+          },
+        },
+        images: true,
+      },
+    });
+    return variant;
+  };
 }

@@ -26,29 +26,28 @@ const productController = new ProductController(productService);
 const router = Router();
 
 // Routes
-router.get(
-  "/",
-  productController.getAllProducts,
-);
+router.get("/", productController.getAllProducts);
+
+router.get("/variants/:variantId", productController.getProductVariantById);
 
 router.post(
   "/",
   authenticate,
-  authorize(["ADMIN","SUPPLIER"]),
+  authorize(["ADMIN", "SUPPLIER"]),
   productController.addProduct,
 );
 
 router.patch(
   "/:id",
   authenticate,
-  authorize(["ADMIN","SUPPLIER"]),
+  authorize(["ADMIN", "SUPPLIER"]),
   productController.updateProduct,
 );
 
 router.delete(
   "/:id",
   authenticate,
-  authorize(["ADMIN","SUPPLIER"]),
+  authorize(["ADMIN", "SUPPLIER"]),
   productController.deleteProduct,
 );
 

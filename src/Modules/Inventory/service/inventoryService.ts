@@ -165,8 +165,43 @@ export class InventoryService {
     );
     return inventories;
   };
-  getProductVariantStock=async(variantId:string,db=prisma):Promise<getProductVariantStockFromInventoryResponse[]>=>{
-    const stocks=await this.inventoryRepo.getProductVariant(variantId,db);
+  getProductVariantStock = async (
+    variantId: string,
+    db = prisma,
+  ): Promise<getProductVariantStockFromInventoryResponse[]> => {
+    const stocks = await this.inventoryRepo.getProductVariant(variantId, db);
     return stocks;
-  }
+  };
+
+  getTotalProductVariantStockLevel = async (
+    variantId: string,
+    db = prisma,
+  ): Promise<number> => {
+    const totalStock =
+      await this.inventoryRepo.getTotalProductVariantStockLevel(variantId, db);
+    return totalStock;
+  };
+
+  getTotalProductVariantStockLevelWithLock = async (
+    variantId: string,
+    db = prisma,
+  ): Promise<number> => {
+    const totalStock =
+      await this.inventoryRepo.getTotalProductVariantStockLevelWithLock(
+        variantId,
+        db,
+      );
+    return totalStock;
+  };
+
+  getProductVariantStocksForDecrement = async (
+    variantId: string,
+    db = prisma,
+  ): Promise<addProductVariantInInventoryInput[]> => {
+    const stocks = await this.inventoryRepo.getProductVariantStocksForDecrement(
+      variantId,
+      db,
+    );
+    return stocks;
+  };
 }

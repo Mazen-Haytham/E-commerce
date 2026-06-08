@@ -31,4 +31,5 @@ export interface ProductRepo {
     skus: string[],
   ): Promise<{ sku: string; productName: string }[]>;
   getProductsByIds(ids:string[]):Promise<any>;
+  getProductVariantById(variantId: string): Promise<any>;
 }

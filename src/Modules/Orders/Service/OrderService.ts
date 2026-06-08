@@ -23,23 +23,28 @@ import { prisma } from "../../../shared/prisma.js";
 import { userApi } from "../../User/src/Api/userApi.js";
 import { ProductApi } from "../../Catalog/Product/API/productApi.js";
 import { CategoryApi } from "../../Catalog/Category/API/categoryApi.js";
+import { InventoryApi } from "../../Inventory/Api/InvApi.js";
+import { AppError } from "../../../utils/AppError.js";
 
 export class OrderService {
   private orderRepo: OrderRepo;
   private userApi: userApi;
   private productApi: ProductApi;
   private categoryApi: CategoryApi;
+  private inventoryApi: InventoryApi;
 
   constructor(
     orderRepo: OrderRepo,
     userApi: userApi,
     productApi: ProductApi,
     categoryApi: CategoryApi,
+    inventoryApi: InventoryApi,
   ) {
     this.orderRepo = orderRepo;
     this.userApi = userApi;
     this.productApi = productApi;
     this.categoryApi = categoryApi;
+    this.inventoryApi = inventoryApi;
   }
 
   getAllOrders = async (): Promise<GetAllOrdersResponse[]> => {
@@ -73,43 +78,107 @@ export class OrderService {
   createOrder = async (
     input: CreateOrderInput,
   ): Promise<CreateOrderResponse> => {
-    // Validate input
-    if (!input.userId || input.userId.trim() === "") {
-      throw new Error("User ID is required");
-    }
-
-    if (!input.items || input.items.length === 0) {
-      throw new Error("At least one item is required in the order");
-    }
-
-    if (!input.totalPrice || Number(input.totalPrice) <= 0) {
-      throw new Error("Total price must be greater than zero");
-    }
-
-    // Validate all items have required fields
-    for (const item of input.items) {
-      if (!item.productVariantId || item.productVariantId.trim() === "") {
-        throw new Error("Product variant ID is required for all items");
+    // Wrap entire order creation in transaction with row-level locking
+    return await prisma.$transaction(async (tx) => {
+      // Validate input
+      if (!input.userId || input.userId.trim() === "") {
+        throw new AppError("User ID is required", 400);
       }
 
-      if (!item.quantity || item.quantity <= 0) {
-        throw new Error("Quantity must be greater than zero");
+      if (!input.items || input.items.length === 0) {
+        throw new AppError("At least one item is required in the order", 400);
       }
 
-      if (!item.unitPrice || Number(item.unitPrice) <= 0) {
-        throw new Error("Unit price must be greater than zero");
+      if (!input.totalPrice || Number(input.totalPrice) <= 0) {
+        throw new AppError("Total price must be greater than zero", 400);
       }
-    }
 
-    // Verify user exists using UserApi
-    await this.userApi.findUserById(input.userId);
+      // Validate all items have required fields
+      for (const item of input.items) {
+        if (!item.productVariantId || item.productVariantId.trim() === "") {
+          throw new AppError(
+            "Product variant ID is required for all items",
+            400,
+          );
+        }
 
-    // Verify all product variants exist using ProductApi
-    for (const item of input.items) {
-      await this.productApi.findProductVariantById(item.productVariantId);
-    }
+        if (!item.quantity || item.quantity <= 0) {
+          throw new AppError("Quantity must be greater than zero", 400);
+        }
 
-    return await this.orderRepo.createOrder(input, prisma);
+        if (!item.unitPrice || Number(item.unitPrice) <= 0) {
+          throw new AppError("Unit price must be greater than zero", 400);
+        }
+      }
+
+      // Verify user exists using UserApi
+      await this.userApi.findUserById(input.userId);
+
+      // Verify all product variants exist and validate stock levels with row-level locking
+      for (const item of input.items) {
+        await this.productApi.findProductVariantById(item.productVariantId);
+
+        // Get stock level with row-level locking to prevent race conditions
+        const availableStock =
+          await this.inventoryApi.getProductVariantStockWithLock(
+            item.productVariantId,
+            tx,
+          );
+
+        if (item.quantity > availableStock) {
+          throw new Error(
+            `Insufficient stock for product variant ${item.productVariantId}. Available: ${availableStock}, Requested: ${item.quantity}`,
+          );
+        }
+      }
+
+      // Create order within transaction
+      const createdOrder = await this.orderRepo.createOrder(input, tx);
+
+      // Decrement stock levels for each item in the order across multiple inventories
+      for (const item of input.items) {
+        // Get all inventory records for this variant, ordered by inventory ID
+        const allInventoryStocks =
+          await this.inventoryApi.getProductVariantStocksForDecrement(
+            item.productVariantId,
+            tx,
+          );
+
+        let remainingQuantity = item.quantity;
+
+        // Loop through each inventory location and decrement
+        for (const inventory of allInventoryStocks) {
+          if (remainingQuantity <= 0) break; // All quantity decremented
+
+          if (inventory.stockLevel >= remainingQuantity) {
+            // This inventory has enough stock
+            await this.inventoryApi.updateStockLevel(
+              {
+                productVariantId: item.productVariantId,
+                inventoryId: inventory.inventoryId,
+                stockLevel: -remainingQuantity,
+              },
+              tx,
+            );
+            remainingQuantity = 0;
+          } else {
+            // This inventory doesn't have enough, decrement what's available and set to 0
+            const toDecrement = -inventory.stockLevel; // Negative of current stock level to set to 0
+            await this.inventoryApi.updateStockLevel(
+              {
+                productVariantId: item.productVariantId,
+                inventoryId: inventory.inventoryId,
+                stockLevel: toDecrement,
+              },
+              tx,
+            );
+            remainingQuantity -= inventory.stockLevel;
+          }
+        }
+      }
+
+      return createdOrder;
+    });
   };
 
   updateOrderStatus = async (

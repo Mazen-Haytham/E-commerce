@@ -1,9 +1,25 @@
-import { addProductVariantInInventoryInput, getProductVariantStockFromInventoryResponse } from "../types/types.js";
+import {
+  addProductVariantInInventoryInput,
+  getProductVariantStockFromInventoryResponse,
+  updateProductVariantStockLevel,
+} from "../types/types.js";
 import { PrismaClient } from "@prisma/client/extension";
 export interface InventoryApi {
   addProductVariantInInventory(
     addProductVariantInInventoryInput: addProductVariantInInventoryInput[],
-    tx:PrismaClient
+    tx: PrismaClient,
   ): Promise<addProductVariantInInventoryInput[]>;
-  getProductVariantStock(variantId:string):Promise<getProductVariantStockFromInventoryResponse[]>;
+  getProductVariantStock(variantId: string): Promise<number>;
+  getProductVariantStockWithLock(
+    variantId: string,
+    tx: PrismaClient,
+  ): Promise<number>;
+  updateStockLevel(
+    input: updateProductVariantStockLevel,
+    tx: PrismaClient,
+  ): Promise<updateProductVariantStockLevel>;
+  getProductVariantStocksForDecrement(
+    variantId: string,
+    tx: PrismaClient,
+  ): Promise<addProductVariantInInventoryInput[]>;
 }
