@@ -43,6 +43,9 @@
             ├── schema.prisma
             ├── wasm-edge-light-loader.mjs
             ├── wasm-worker-loader.mjs
+    └── 📁messaging
+        ├── connection.ts
+        ├── Exchanges.ts
     └── 📁Modules
         └── 📁Auth
             └── 📁Api
@@ -137,6 +140,7 @@
                     ├── userTypes.ts
                 ├── index.ts
     └── 📁shared
+        ├── exchnage.ts
         ├── express.d.ts
         ├── prisma.ts
         ├── redis.ts
