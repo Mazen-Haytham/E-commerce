@@ -126,8 +126,9 @@ export class OrderService {
           );
 
         if (item.quantity > availableStock) {
-          throw new Error(
+          throw new AppError(
             `Insufficient stock for product variant ${item.productVariantId}. Available: ${availableStock}, Requested: ${item.quantity}`,
+            400
           );
         }
       }
