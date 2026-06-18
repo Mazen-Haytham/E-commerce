@@ -78,105 +78,78 @@ export class OrderService {
   createOrder = async (
     input: CreateOrderInput,
   ): Promise<CreateOrderResponse> => {
+    if (!input.userId || input.userId.trim() === "") {
+      throw new AppError("User ID is required", 400);
+    }
+
+    if (!input.items || input.items.length === 0) {
+      throw new AppError("At least one item is required in the order", 400);
+    }
+
+    if (!input.totalPrice || Number(input.totalPrice) <= 0) {
+      throw new AppError("Total price must be greater than zero", 400);
+    }
+
+    // Validate all items have required fields
+    for (const item of input.items) {
+      if (!item.productVariantId || item.productVariantId.trim() === "") {
+        throw new AppError("Product variant ID is required for all items", 400);
+      }
+
+      if (!item.quantity || item.quantity <= 0) {
+        throw new AppError("Quantity must be greater than zero", 400);
+      }
+
+      if (!item.unitPrice || Number(item.unitPrice) <= 0) {
+        throw new AppError("Unit price must be greater than zero", 400);
+      }
+    }
+
+    // Verify user exists using UserApi
+    await this.userApi.findUserById(input.userId);
+
+    // Verify all product variants exist and validate stock levels with row-level locking
+    for (const item of input.items) {
+      await this.productApi.findProductVariantById(item.productVariantId);
+
+      // Get stock level with row-level locking to prevent race conditions
+      const availableStock =
+        await this.inventoryApi.getProductVariantStockWithLock(
+          item.productVariantId,
+          prisma,
+        );
+
+      if (item.quantity > availableStock) {
+        throw new AppError(
+          `Insufficient stock for product variant ${item.productVariantId}. Available: ${availableStock}, Requested: ${item.quantity}`,
+          400,
+        );
+      }
+    }
     // Wrap entire order creation in transaction with row-level locking
     return await prisma.$transaction(async (tx) => {
-      // Validate input
-      if (!input.userId || input.userId.trim() === "") {
-        throw new AppError("User ID is required", 400);
-      }
-
-      if (!input.items || input.items.length === 0) {
-        throw new AppError("At least one item is required in the order", 400);
-      }
-
-      if (!input.totalPrice || Number(input.totalPrice) <= 0) {
-        throw new AppError("Total price must be greater than zero", 400);
-      }
-
-      // Validate all items have required fields
       for (const item of input.items) {
-        if (!item.productVariantId || item.productVariantId.trim() === "") {
-          throw new AppError(
-            "Product variant ID is required for all items",
-            400,
-          );
-        }
-
-        if (!item.quantity || item.quantity <= 0) {
-          throw new AppError("Quantity must be greater than zero", 400);
-        }
-
-        if (!item.unitPrice || Number(item.unitPrice) <= 0) {
-          throw new AppError("Unit price must be greater than zero", 400);
-        }
-      }
-
-      // Verify user exists using UserApi
-      await this.userApi.findUserById(input.userId);
-
-      // Verify all product variants exist and validate stock levels with row-level locking
-      for (const item of input.items) {
-        await this.productApi.findProductVariantById(item.productVariantId);
-
         // Get stock level with row-level locking to prevent race conditions
         const availableStock =
           await this.inventoryApi.getProductVariantStockWithLock(
             item.productVariantId,
-            tx,
+            prisma,
           );
 
         if (item.quantity > availableStock) {
           throw new AppError(
             `Insufficient stock for product variant ${item.productVariantId}. Available: ${availableStock}, Requested: ${item.quantity}`,
-            400
+            400,
           );
         }
       }
+      // Validate input
 
       // Create order within transaction
       const createdOrder = await this.orderRepo.createOrder(input, tx);
 
-      // Decrement stock levels for each item in the order across multiple inventories
-      for (const item of input.items) {
-        // Get all inventory records for this variant, ordered by inventory ID
-        const allInventoryStocks =
-          await this.inventoryApi.getProductVariantStocksForDecrement(
-            item.productVariantId,
-            tx,
-          );
-
-        let remainingQuantity = item.quantity;
-
-        // Loop through each inventory location and decrement
-        for (const inventory of allInventoryStocks) {
-          if (remainingQuantity <= 0) break; // All quantity decremented
-
-          if (inventory.stockLevel >= remainingQuantity) {
-            // This inventory has enough stock
-            await this.inventoryApi.updateStockLevel(
-              {
-                productVariantId: item.productVariantId,
-                inventoryId: inventory.inventoryId,
-                stockLevel: -remainingQuantity,
-              },
-              tx,
-            );
-            remainingQuantity = 0;
-          } else {
-            // This inventory doesn't have enough, decrement what's available and set to 0
-            const toDecrement = -inventory.stockLevel; // Negative of current stock level to set to 0
-            await this.inventoryApi.updateStockLevel(
-              {
-                productVariantId: item.productVariantId,
-                inventoryId: inventory.inventoryId,
-                stockLevel: toDecrement,
-              },
-              tx,
-            );
-            remainingQuantity -= inventory.stockLevel;
-          }
-        }
-      }
+      // Decrement stock levels for all items across multiple inventories using single API call
+      await this.inventoryApi.decrementStockForOrderItems(input.items, tx);
 
       return createdOrder;
     });

@@ -204,4 +204,49 @@ export class InventoryService {
     );
     return stocks;
   };
+
+  decrementStockForOrderItems = async (
+    items: Array<{ productVariantId: string; quantity: number }>,
+    db: PrismaClient = prisma as unknown as PrismaClient,
+  ): Promise<void> => {
+    for (const item of items) {
+      // Get all inventory records for this variant, ordered by inventory ID
+      const allInventoryStocks = await this.getProductVariantStocksForDecrement(
+        item.productVariantId,
+        db,
+      );
+
+      let remainingQuantity = item.quantity;
+
+      // Loop through each inventory location and decrement
+      for (const inventory of allInventoryStocks) {
+        if (remainingQuantity <= 0) break; // All quantity decremented
+
+        if (inventory.stockLevel >= remainingQuantity) {
+          // This inventory has enough stock
+          await this.updateStockLevel(
+            {
+              productVariantId: item.productVariantId,
+              inventoryId: inventory.inventoryId,
+              stockLevel: -remainingQuantity,
+            },
+            db,
+          );
+          remainingQuantity = 0;
+        } else {
+          // This inventory doesn't have enough, decrement what's available and set to 0
+          const toDecrement = -inventory.stockLevel; // Negative of current stock level to set to 0
+          await this.updateStockLevel(
+            {
+              productVariantId: item.productVariantId,
+              inventoryId: inventory.inventoryId,
+              stockLevel: toDecrement,
+            },
+            db,
+          );
+          remainingQuantity -= inventory.stockLevel;
+        }
+      }
+    }
+  };
 }

@@ -4,6 +4,12 @@ import {
   updateProductVariantStockLevel,
 } from "../types/types.js";
 import { PrismaClient } from "@prisma/client/extension";
+
+export interface OrderItemForInventory {
+  productVariantId: string;
+  quantity: number;
+}
+
 export interface InventoryApi {
   addProductVariantInInventory(
     addProductVariantInInventoryInput: addProductVariantInInventoryInput[],
@@ -22,4 +28,8 @@ export interface InventoryApi {
     variantId: string,
     tx: PrismaClient,
   ): Promise<addProductVariantInInventoryInput[]>;
+  decrementStockForOrderItems(
+    items: OrderItemForInventory[],
+    tx: PrismaClient,
+  ): Promise<void>;
 }
