@@ -1,4 +1,15 @@
 // Base Order Types
+export const ORDER_STATUS = {
+  PENDING: "pending",
+  CONFIRMED: "confirmed",
+  CANCELLED: "cancelled",
+} as const;
+
+export const ORDER_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
+  [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.CANCELLED],
+};
+
 export interface Order {
   id: string;
   userId: string;

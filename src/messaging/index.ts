@@ -7,6 +7,6 @@ export async function initMessaging(): Promise<void> {
   await setupTopology();
 }
 
-export { publishEvent } from "./publisher.js";
+export { publishEvent, publishEnvelope } from "./publisher.js";
 export { startConsumer } from "./consumer.js";
 export { closeRabbitMQ } from "./connection.js";

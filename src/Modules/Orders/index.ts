@@ -46,6 +46,7 @@ const orderService = new OrderService(
   userApi,
   productApi,
   categoryApi,
+  inventoryApi
 );
 
 // Initialize OrderController

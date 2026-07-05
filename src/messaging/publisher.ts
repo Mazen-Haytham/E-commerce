@@ -7,16 +7,11 @@ import { EventEnvelope } from "./events.js";
 // broker's confirmation. If the broker is unreachable or rejects it, this
 // rejects too — so a publish failure is something your service code can
 // actually catch, instead of silently disappearing.
-export async function publishEvent<T>(routingKey: string, payload: T): Promise<void> {
+export async function publishEnvelope<T>(
+  routingKey: string,
+  envelope: EventEnvelope<T>,
+): Promise<void> {
   const channel = getConfirmChannel();
-
-  const envelope: EventEnvelope<T> = {
-    eventId: randomUUID(),
-    eventName: routingKey,
-    occurredAt: new Date().toISOString(),
-    payload,
-  };
-
   const buffer = Buffer.from(JSON.stringify(envelope));
 
   await new Promise<void>((resolve, reject) => {
@@ -36,7 +31,18 @@ export async function publishEvent<T>(routingKey: string, payload: T): Promise<v
         } else {
           resolve();
         }
-      }
+      },
     );
   });
+}
+
+export async function publishEvent<T>(routingKey: string, payload: T): Promise<void> {
+  const envelope: EventEnvelope<T> = {
+    eventId: randomUUID(),
+    eventType: routingKey,
+    occurredAt: new Date().toISOString(),
+    payload,
+  };
+
+  await publishEnvelope(routingKey, envelope);
 }

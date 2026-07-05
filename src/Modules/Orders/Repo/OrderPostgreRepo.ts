@@ -13,6 +13,8 @@ import {
   CreateVariantDiscountInput,
   CreateCategoryDiscountInput,
   CreateDiscountResponse,
+  ORDER_STATUS,
+  ORDER_STATUS_TRANSITIONS,
 } from "../types/types.js";
 import {
   OrderRepo,
@@ -128,7 +130,7 @@ export class OrderPostgreSqlRepo implements OrderRepo {
       data: {
         userId: input.userId,
         totalPrice: input.totalPrice,
-        status: "confirmed",
+        status: ORDER_STATUS.PENDING,
         items: {
           createMany: {
             data: input.items.map((item: any) => ({
@@ -164,23 +166,22 @@ export class OrderPostgreSqlRepo implements OrderRepo {
     input: UpdateOrderStatusInput,
     db: PrismaClient,
   ): Promise<UpdateOrderStatusResponse> => {
-    // If status is "cancelled", validate transition is allowed
-    if (input.status === "cancelled") {
-      const order = await db.order.findUnique({
-        where: { id: input.orderId },
-        select: { status: true },
-      });
+    const order = await db.order.findUnique({
+      where: { id: input.orderId },
+      select: { status: true },
+    });
 
-      if (!order) {
-        throw new Error("Order not found");
-      }
+    if (!order) {
+      throw new Error("Order not found");
+    }
 
-      // Only allow cancellation from "confirmed" status
-      if (order.status !== "confirmed") {
-        throw new Error(
-          `Cannot cancel order with status "${order.status}". Only confirmed orders can be cancelled.`,
-        );
-      }
+    const allowedTargets = ORDER_STATUS_TRANSITIONS[order.status];
+    if (!allowedTargets?.includes(input.status)) {
+      throw new Error(
+        allowedTargets
+          ? `Cannot transition order from "${order.status}" to "${input.status}". Allowed targets: ${allowedTargets.join(", ")}`
+          : `Cannot transition order from "${order.status}". No further status changes are allowed.`,
+      );
     }
 
     const updatedOrder = await db.order.update({
@@ -211,10 +212,17 @@ export class OrderPostgreSqlRepo implements OrderRepo {
       throw new Error("Order not found");
     }
 
+    const allowedTargets = ORDER_STATUS_TRANSITIONS[order.status];
+    if (!allowedTargets?.includes(ORDER_STATUS.CANCELLED)) {
+      throw new Error(
+        `Cannot cancel order with status "${order.status}". Only pending or confirmed orders can be cancelled.`,
+      );
+    }
+
     // Mark as cancelled instead of deleting
     const cancelledOrder = await prisma.order.update({
       where: { id: orderId },
-      data: { status: "cancelled" },
+      data: { status: ORDER_STATUS.CANCELLED },
       select: {
         id: true,
         status: true,

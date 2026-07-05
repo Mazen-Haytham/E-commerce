@@ -10,6 +10,7 @@ import { productRouter } from "./Modules/Catalog/Product/index.js";
 import { OrderRouter } from "./Modules/Orders/index.js";
 import { categoryRouter } from "./Modules/Catalog/Category/index.js";
 import { initMessaging } from "./messaging/index.js";
+import { startOrderCreatedTestConsumer } from "./Modules/Inventory/consumers/orderCreatedTestConsumer.js";
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ const app = express();
 (async () => {
   try {
     await initMessaging();
+    await startOrderCreatedTestConsumer();
     console.log("[App] RabbitMQ messaging initialized");
   } catch (err) {
     console.error("[App] Failed to initialize messaging:", err);

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client/extension";
+import { randomUUID } from "crypto";
 import {
   CreateOrderInput,
   CreateOrderResponse,
@@ -13,6 +14,7 @@ import {
   CreateVariantDiscountInput,
   CreateCategoryDiscountInput,
   CreateDiscountResponse,
+  ORDER_STATUS,
 } from "../types/types.js";
 import {
   OrderRepo,
@@ -25,6 +27,14 @@ import { ProductApi } from "../../Catalog/Product/API/productApi.js";
 import { CategoryApi } from "../../Catalog/Category/API/categoryApi.js";
 import { InventoryApi } from "../../Inventory/Api/InvApi.js";
 import { AppError } from "../../../utils/AppError.js";
+import { OutboxRepo } from "../../../shared/outbox/outboxRepo.js";
+import {
+  ORDER_CREATED_EVENT_TYPE,
+  OrderCreatedPayload,
+  PendingOrderCreatedEvent,
+} from "../events/orderCreatedEvent.js";
+import { publishEnvelope } from "../../../messaging/publisher.js";
+import { ROUTING_KEYS } from "../../../shared/exchnage.js";
 
 export class OrderService {
   private orderRepo: OrderRepo;
@@ -32,6 +42,7 @@ export class OrderService {
   private productApi: ProductApi;
   private categoryApi: CategoryApi;
   private inventoryApi: InventoryApi;
+  private outboxRepo: OutboxRepo;
 
   constructor(
     orderRepo: OrderRepo,
@@ -39,12 +50,14 @@ export class OrderService {
     productApi: ProductApi,
     categoryApi: CategoryApi,
     inventoryApi: InventoryApi,
+    outboxRepo: OutboxRepo = new OutboxRepo(),
   ) {
     this.orderRepo = orderRepo;
     this.userApi = userApi;
     this.productApi = productApi;
     this.categoryApi = categoryApi;
     this.inventoryApi = inventoryApi;
+    this.outboxRepo = outboxRepo;
   }
 
   getAllOrders = async (): Promise<GetAllOrdersResponse[]> => {
@@ -127,32 +140,75 @@ export class OrderService {
       }
     }
     // Wrap entire order creation in transaction with row-level locking
-    return await prisma.$transaction(async (tx) => {
-      for (const item of input.items) {
-        // Get stock level with row-level locking to prevent race conditions
-        const availableStock =
-          await this.inventoryApi.getProductVariantStockWithLock(
-            item.productVariantId,
-            prisma,
-          );
+    const { createdOrder, pendingEvent } = await prisma.$transaction(
+      async (tx) => {
+        for (const item of input.items) {
+          // Get stock level with row-level locking to prevent race conditions
+          const availableStock =
+            await this.inventoryApi.getProductVariantStockWithLock(
+              item.productVariantId,
+              prisma,
+            );
 
-        if (item.quantity > availableStock) {
-          throw new AppError(
-            `Insufficient stock for product variant ${item.productVariantId}. Available: ${availableStock}, Requested: ${item.quantity}`,
-            400,
-          );
+          if (item.quantity > availableStock) {
+            throw new AppError(
+              `Insufficient stock for product variant ${item.productVariantId}. Available: ${availableStock}, Requested: ${item.quantity}`,
+              400,
+            );
+          }
         }
-      }
-      // Validate input
 
-      // Create order within transaction
-      const createdOrder = await this.orderRepo.createOrder(input, tx);
+        const createdOrder = await this.orderRepo.createOrder(input, tx);
+        await this.inventoryApi.decrementStockForOrderItems(input.items, tx);
 
-      // Decrement stock levels for all items across multiple inventories using single API call
-      await this.inventoryApi.decrementStockForOrderItems(input.items, tx);
+        const eventId = randomUUID();
+        const occurredAt = new Date().toISOString();
+        const payload: OrderCreatedPayload = {
+          orderId: createdOrder.id,
+          userId: createdOrder.userId,
+          items: input.items.map((item) => ({
+            productVariantId: item.productVariantId,
+            quantity: item.quantity,
+          })),
+        };
 
-      return createdOrder;
-    });
+        await this.outboxRepo.insertEvent(tx, {
+          eventId,
+          aggregateId: createdOrder.id,
+          aggregateType: "Order",
+          eventType: ORDER_CREATED_EVENT_TYPE,
+          payload,
+        });
+
+        return {
+          createdOrder,
+          pendingEvent: { eventId, occurredAt, payload },
+        };
+      },
+    );
+
+    await this.tryPublishOrderCreatedEvent(pendingEvent);
+
+    return createdOrder;
+  };
+
+  private tryPublishOrderCreatedEvent = async (
+    pendingEvent: PendingOrderCreatedEvent,
+  ): Promise<void> => {
+    try {
+      await publishEnvelope(ROUTING_KEYS.ORDER_CREATED, {
+        eventId: pendingEvent.eventId,
+        eventType: ORDER_CREATED_EVENT_TYPE,
+        occurredAt: pendingEvent.occurredAt,
+        payload: pendingEvent.payload,
+      });
+      await this.outboxRepo.markPublished(pendingEvent.eventId);
+    } catch (err) {
+      console.error(
+        "[OrderService] failed to publish OrderCreated event; outbox row retained for relay",
+        { eventId: pendingEvent.eventId, err },
+      );
+    }
   };
 
   updateOrderStatus = async (
@@ -167,7 +223,10 @@ export class OrderService {
     }
 
     // Validate status is one of allowed values
-    const validStatuses = ["confirmed", "cancelled"];
+    const validStatuses: string[] = [
+      ORDER_STATUS.CONFIRMED,
+      ORDER_STATUS.CANCELLED,
+    ];
     if (!validStatuses.includes(input.status)) {
       throw new Error(
         `Invalid status. Allowed values: ${validStatuses.join(", ")}`,
@@ -208,7 +267,7 @@ export class OrderService {
       throw new Error(`Order with ID ${input.orderId} not found`);
     }
 
-    if (order.status !== "confirmed") {
+    if (order.status !== ORDER_STATUS.CONFIRMED) {
       throw new Error(
         `Cannot create payment for order with status "${order.status}". Only confirmed orders can have payments.`,
       );
