@@ -204,9 +204,12 @@ export class PrismaInventory implements Repo {
   ): Promise<number> => {
     const stockResult = await db.$queryRaw<Array<{ total_stock: number }>>`
       SELECT COALESCE(SUM("stockLevel"), 0)::integer as total_stock
-      FROM "inventory"."ProductStock"
-      WHERE "productVariantId" = ${variantId}
-      FOR UPDATE
+      FROM (
+        SELECT "stockLevel"
+        FROM "inventory"."ProductStock"
+        WHERE "productVariantId" = ${variantId}
+        FOR UPDATE
+      ) locked_stock
     `;
 
     return stockResult[0]?.total_stock || 0;
@@ -217,14 +220,13 @@ export class PrismaInventory implements Repo {
     db: PrismaClient,
   ): Promise<addProductVariantInInventoryInput[]> => {
     const allInventoryStocks: addProductVariantInInventoryInput[] =
-      await db.productStock.findMany({
-        where: {
-          productVariantId: variantId,
-        },
-        orderBy: {
-          inventoryId: "asc",
-        },
-      });
+      await db.$queryRaw<addProductVariantInInventoryInput[]>`
+        SELECT "productVariantId", "inventoryId", "stockLevel", "restockAlert"
+        FROM "inventory"."ProductStock"
+        WHERE "productVariantId" = ${variantId}
+        ORDER BY "inventoryId" ASC
+        FOR UPDATE
+      `;
     return allInventoryStocks;
   };
 }

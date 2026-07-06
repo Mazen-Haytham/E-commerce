@@ -1,10 +1,10 @@
-import amqp, { Connection, Channel, ConfirmChannel } from "amqplib";
+import amqp, { ChannelModel, Channel, ConfirmChannel } from "amqplib";
 
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost";
 const RECONNECT_DELAY_MS = Number(process.env.RABBITMQ_RECONNECT_DELAY_MS || 5000);
 const PREFETCH_COUNT = Number(process.env.RABBITMQ_PREFETCH || 10);
 
-let connection: Connection | null = null;
+let connection: ChannelModel | null = null;
 
 // Two channels, two jobs:
 // - `channel` is for CONSUMING. It has a prefetch limit so one greedy consumer
@@ -22,7 +22,7 @@ function sleep(ms: number): Promise<void> {
 
 // Keeps retrying forever, with a fixed delay, until a connection succeeds.
 // This is the same idea as redialing a phone number that's busy.
-async function connectWithRetry(): Promise<Connection> {
+async function connectWithRetry(): Promise<ChannelModel> {
   while (true) {
     try {
       return await amqp.connect(RABBITMQ_URL);
@@ -40,7 +40,7 @@ export async function connectRabbitMQ(): Promise<void> {
   connection = await connectWithRetry();
   console.log("[RabbitMQ] connected");
 
-  connection.on("error", (err) => {
+  connection.on("error", (err: Error) => {
     // "error" fires for protocol-level problems. "close" always fires right
     // after, so the actual reconnect logic lives there to avoid double work.
     console.error("[RabbitMQ] connection error:", err.message);

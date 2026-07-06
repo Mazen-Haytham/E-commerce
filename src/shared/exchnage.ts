@@ -9,6 +9,7 @@ export const ROUTING_KEYS = {
   ORDER_CREATED: "order.created",
   ORDER_CANCELLED: "order.cancelled",
   INVENTORY_STOCK_RESERVED: "inventory.stock.reserved",
+  INVENTORY_STOCK_REJECTED: "inventory.stock.rejected",
   INVENTORY_STOCK_FAILED: "inventory.stock.failed",
 };
 

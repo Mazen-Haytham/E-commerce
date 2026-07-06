@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["catalog", "inventory", "orders", "users","public"]
+  schemas  = ["catalog", "inventory", "orders", "users", "public"]
 }
 
 model User {
@@ -204,11 +204,20 @@ model ProductStock {
   @@schema("inventory")
 }
 
+enum OrderStatus {
+  pending
+  confirmed
+  stock_rejected
+  cancelled
+
+  @@schema("orders")
+}
+
 model Order {
   id         String      @id @default(uuid())
   userId     String
   totalPrice Decimal
-  status     String
+  status     OrderStatus @default(pending)
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   user       User        @relation(fields: [userId], references: [id])

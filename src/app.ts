@@ -10,7 +10,9 @@ import { productRouter } from "./Modules/Catalog/Product/index.js";
 import { OrderRouter } from "./Modules/Orders/index.js";
 import { categoryRouter } from "./Modules/Catalog/Category/index.js";
 import { initMessaging } from "./messaging/index.js";
-import { startOrderCreatedTestConsumer } from "./Modules/Inventory/consumers/orderCreatedTestConsumer.js";
+import { startOrderCreatedConsumer } from "./Modules/Inventory/consumers/orderCreatedConsumer.js";
+import { startInventoryStockConsumer } from "./Modules/Orders/consumers/inventoryStockConsumer.js";
+import { startPendingOrderSweep } from "./Modules/Orders/jobs/pendingOrderSweep.js";
 
 dotenv.config();
 
@@ -20,7 +22,9 @@ const app = express();
 (async () => {
   try {
     await initMessaging();
-    await startOrderCreatedTestConsumer();
+    await startOrderCreatedConsumer();
+    await startInventoryStockConsumer();
+    startPendingOrderSweep();
     console.log("[App] RabbitMQ messaging initialized");
   } catch (err) {
     console.error("[App] Failed to initialize messaging:", err);

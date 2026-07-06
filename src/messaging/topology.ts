@@ -41,7 +41,7 @@ export async function setupTopology(): Promise<void> {
   await channel.bindQueue(
     QUEUES.ORDERS_INVENTORY_EVENTS,
     EXCHANGES.APP,
-    ROUTING_KEYS.INVENTORY_STOCK_FAILED
+    ROUTING_KEYS.INVENTORY_STOCK_REJECTED
   );
 
   console.log("[RabbitMQ] topology ready (exchanges, queues, bindings)");

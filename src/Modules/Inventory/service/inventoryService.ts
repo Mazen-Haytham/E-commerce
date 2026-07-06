@@ -110,7 +110,7 @@ export class InventoryService {
       inventoryId: input.inventoryId,
     };
     const productStock =
-      await this.getProductVariantFromInventory(ProductInventoryPK);
+      await this.getProductVariantFromInventory(ProductInventoryPK, db);
     if (!productStock)
       throw new AppError(
         "There Is No Product Variant With That Id in The Inventory",
@@ -215,6 +215,17 @@ export class InventoryService {
         item.productVariantId,
         db,
       );
+      const availableStock = allInventoryStocks.reduce(
+        (total, inventory) => total + inventory.stockLevel,
+        0,
+      );
+
+      if (item.quantity > availableStock) {
+        throw new AppError(
+          `Insufficient stock for product variant ${item.productVariantId}. Available: ${availableStock}, Requested: ${item.quantity}`,
+          400,
+        );
+      }
 
       let remainingQuantity = item.quantity;
 

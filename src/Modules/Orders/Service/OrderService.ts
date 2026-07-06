@@ -121,11 +121,10 @@ export class OrderService {
     // Verify user exists using UserApi
     await this.userApi.findUserById(input.userId);
 
-    // Verify all product variants exist and validate stock levels with row-level locking
+    // Verify all product variants exist and make an advisory stock check.
     for (const item of input.items) {
       await this.productApi.findProductVariantById(item.productVariantId);
 
-      // Get stock level with row-level locking to prevent race conditions
       const availableStock =
         await this.inventoryApi.getProductVariantStockWithLock(
           item.productVariantId,
@@ -139,15 +138,14 @@ export class OrderService {
         );
       }
     }
-    // Wrap entire order creation in transaction with row-level locking
+
     const { createdOrder, pendingEvent } = await prisma.$transaction(
       async (tx) => {
         for (const item of input.items) {
-          // Get stock level with row-level locking to prevent race conditions
           const availableStock =
             await this.inventoryApi.getProductVariantStockWithLock(
               item.productVariantId,
-              prisma,
+              tx,
             );
 
           if (item.quantity > availableStock) {
@@ -159,7 +157,6 @@ export class OrderService {
         }
 
         const createdOrder = await this.orderRepo.createOrder(input, tx);
-        await this.inventoryApi.decrementStockForOrderItems(input.items, tx);
 
         const eventId = randomUUID();
         const occurredAt = new Date().toISOString();
@@ -224,7 +221,9 @@ export class OrderService {
 
     // Validate status is one of allowed values
     const validStatuses: string[] = [
+      ORDER_STATUS.PENDING,
       ORDER_STATUS.CONFIRMED,
+      ORDER_STATUS.STOCK_REJECTED,
       ORDER_STATUS.CANCELLED,
     ];
     if (!validStatuses.includes(input.status)) {
