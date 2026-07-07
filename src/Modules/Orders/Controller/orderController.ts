@@ -47,6 +47,7 @@ export class OrderController {
   createOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const input: CreateOrderInput = req.body;
+      input.userId=req.user.userId
       const order = await this.orderService.createOrder(input);
       res.status(201).json({ status: "Success", data: order });
     } catch (error) {

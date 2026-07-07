@@ -1,0 +1,16 @@
+{
+  "userId": "user-uuid",
+  "items": [
+    {
+      "productVariantId": "variant-uuid-1",
+      "quantity": 2,
+      "unitPrice": 49.99
+    },
+    {
+      "productVariantId": "variant-uuid-2",
+      "quantity": 1,
+      "unitPrice": 29.99
+    }
+  ],
+  "totalPrice": 129.97
+}
