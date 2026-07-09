@@ -321,21 +321,42 @@ export class OrderPostgreSqlRepo implements OrderRepo {
   findOrderStatusById = async (
     orderId: string,
     db: PrismaClient,
-  ): Promise<{ status: string; items: Array<{ productVariantId: string; quantity: number }> } | null> => {
-    const order = await db.order.findUnique({
-      where: { id: orderId },
-      select: {
-        status: true,
-        items: {
-          select: {
-            productVariantId: true,
-            quantity: true,
-          },
-        },
-      },
-    });
+  ): Promise<{
+    status: string;
+    items: Array<{
+      productVariantId: string;
+      quantity: number;
+    }>;
+  } | null> => {
+    const orders = await db.$queryRaw<
+      Array<{
+        status: string;
+        items: Array<{
+          productVariantId: string;
+          quantity: number;
+        }>;
+      }>
+    >`
+    SELECT
+      o.status,
+      COALESCE(
+        json_agg(
+          json_build_object(
+            'productVariantId', oi."productVariantId",
+            'quantity', oi.quantity
+          )
+        ) FILTER (WHERE oi.id IS NOT NULL),
+        '[]'
+      ) AS items
+    FROM "orders"."Order" o
+    LEFT JOIN "orders"."OrderItem" oi
+      ON oi."orderId" = o.id
+    WHERE o.id = ${orderId}::uuid
+    GROUP BY o.id, o.status
+    FOR UPDATE
+  `;
 
-    return order;
+    return orders.length > 0 ? orders[0] : null;
   };
 
   findPaymentMethodById = async (paymentMethodId: string): Promise<boolean> => {
