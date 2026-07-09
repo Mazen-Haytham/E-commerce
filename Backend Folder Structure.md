@@ -1,5 +1,7 @@
 ```
 └── 📁src
+    └── 📁__tests__
+        ├── order-stock-concurrency.integration.test.ts
     └── 📁generated
         └── 📁prisma
             └── 📁internal
@@ -45,7 +47,15 @@
             ├── wasm-worker-loader.mjs
     └── 📁messaging
         ├── connection.ts
+        ├── consumer.ts
+        ├── events.ts
         ├── Exchanges.ts
+        ├── exchnage.ts
+        ├── files.zip
+        ├── index.ts
+        ├── publisher.ts
+        ├── README.md
+        ├── topology.ts
     └── 📁Modules
         └── 📁Auth
             └── 📁Api
@@ -97,9 +107,14 @@
                 ├── InvApiImp.ts
             └── 📁Components
                 ├── RepoFactory.ts
+            └── 📁consumers
+                ├── orderCancelledConsumer.ts
+                ├── orderCreatedConsumer.ts
             └── 📁controller
                 ├── inventoryController.ts
             └── 📁DTOS
+            └── 📁events
+                ├── inventoryStockEvent.ts
             └── 📁repo
                 ├── inventoryRepo.ts
                 ├── repo.ts
@@ -110,8 +125,16 @@
             ├── index.ts
         └── 📁Orders
             └── 📁Api
+            └── 📁consumers
+                ├── inventoryStockConsumer.ts
             └── 📁Controller
                 ├── orderController.ts
+            └── 📁events
+                ├── inventoryStockFailedEvent.ts
+                ├── orderCancelledEvent.ts
+                ├── orderCreatedEvent.ts
+            └── 📁jobs
+                ├── pendingOrderSweep.ts
             └── 📁Repo
                 ├── OrderPostgreRepo.ts
                 ├── Repo.ts
@@ -140,6 +163,8 @@
                     ├── userTypes.ts
                 ├── index.ts
     └── 📁shared
+        └── 📁outbox
+            ├── outboxRepo.ts
         ├── exchnage.ts
         ├── express.d.ts
         ├── prisma.ts
