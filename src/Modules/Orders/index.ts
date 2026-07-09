@@ -103,6 +103,12 @@ router.patch(
   authorize(["ADMIN"]),
   orderController.updateOrderStatus,
 );
+router.post(
+  "/:orderId/cancel",
+  authenticate,
+  authorize(["ADMIN", "CUSTOMER"]),
+  orderController.cancelOrder,
+);
 router.delete(
   "/:orderId",
   authenticate,

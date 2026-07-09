@@ -71,6 +71,16 @@ export class OrderController {
     }
   };
 
+  cancelOrder = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const orderId = String(req.params.orderId);
+      const updatedOrder = await this.orderService.cancelOrder(orderId);
+      res.status(200).json({ status: "Success", data: updatedOrder });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   deleteOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const orderId = String(req.params.orderId);

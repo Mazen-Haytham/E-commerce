@@ -33,6 +33,11 @@ import {
   OrderCreatedPayload,
   PendingOrderCreatedEvent,
 } from "../events/orderCreatedEvent.js";
+import {
+  ORDER_CANCELLED_EVENT_TYPE,
+  OrderCancelledPayload,
+  PendingOrderCancelledEvent,
+} from "../events/orderCancelledEvent.js";
 import { publishEnvelope } from "../../../messaging/publisher.js";
 import { ROUTING_KEYS } from "../../../shared/exchnage.js";
 
@@ -121,41 +126,13 @@ export class OrderService {
     // Verify user exists using UserApi
     await this.userApi.findUserById(input.userId);
 
-    // Verify all product variants exist and make an advisory stock check.
+    // Verify all product variants exist using ProductApi
     for (const item of input.items) {
       await this.productApi.findProductVariantById(item.productVariantId);
-
-      const availableStock =
-        await this.inventoryApi.getProductVariantStockWithLock(
-          item.productVariantId,
-          prisma,
-        );
-
-      if (item.quantity > availableStock) {
-        throw new AppError(
-          `Insufficient stock for product variant ${item.productVariantId}. Available: ${availableStock}, Requested: ${item.quantity}`,
-          400,
-        );
-      }
     }
 
     const { createdOrder, pendingEvent } = await prisma.$transaction(
       async (tx) => {
-        for (const item of input.items) {
-          const availableStock =
-            await this.inventoryApi.getProductVariantStockWithLock(
-              item.productVariantId,
-              tx,
-            );
-
-          if (item.quantity > availableStock) {
-            throw new AppError(
-              `Insufficient stock for product variant ${item.productVariantId}. Available: ${availableStock}, Requested: ${item.quantity}`,
-              400,
-            );
-          }
-        }
-
         const createdOrder = await this.orderRepo.createOrder(input, tx);
 
         const eventId = randomUUID();
@@ -233,6 +210,78 @@ export class OrderService {
     }
 
     return await this.orderRepo.updateOrderStatus(input, prisma);
+  };
+
+  cancelOrder = async (
+    orderId: string,
+  ): Promise<UpdateOrderStatusResponse> => {
+    if (!orderId || orderId.trim() === "") {
+      throw new Error("Order ID is required");
+    }
+
+    const { updatedOrder, pendingEvent } = await prisma.$transaction(
+      async (tx) => {
+        // Get current order to know its previous status
+        const currentOrder = await this.orderRepo.findOrderStatusById(orderId, tx);
+
+        if (!currentOrder) {
+          throw new Error(`Order with ID ${orderId} not found`);
+        }
+
+        const previousStatus = currentOrder.status;
+
+        // Update status (this will enforce valid transitions)
+        const updatedOrder = await this.orderRepo.updateOrderStatus(
+          { orderId, status: ORDER_STATUS.CANCELLED },
+          tx,
+        );
+
+        // Write outbox event
+        const eventId = randomUUID();
+        const occurredAt = new Date().toISOString();
+        const payload: OrderCancelledPayload = {
+          orderId,
+          previousStatus,
+          items: currentOrder.items,
+        };
+
+        await this.outboxRepo.insertEvent(tx, {
+          eventId,
+          aggregateId: orderId,
+          aggregateType: "Order",
+          eventType: ORDER_CANCELLED_EVENT_TYPE,
+          payload,
+        });
+
+        return {
+          updatedOrder,
+          pendingEvent: { eventId, occurredAt, payload },
+        };
+      },
+    );
+
+    await this.tryPublishOrderCancelledEvent(pendingEvent);
+
+    return updatedOrder;
+  };
+
+  private tryPublishOrderCancelledEvent = async (
+    pendingEvent: PendingOrderCancelledEvent,
+  ): Promise<void> => {
+    try {
+      await publishEnvelope(ROUTING_KEYS.ORDER_CANCELLED, {
+        eventId: pendingEvent.eventId,
+        eventType: ORDER_CANCELLED_EVENT_TYPE,
+        occurredAt: pendingEvent.occurredAt,
+        payload: pendingEvent.payload,
+      });
+      await this.outboxRepo.markPublished(pendingEvent.eventId);
+    } catch (err) {
+      console.error(
+        "[OrderService] failed to publish OrderCancelled event; outbox row retained for relay",
+        { eventId: pendingEvent.eventId, err },
+      );
+    }
   };
 
   deleteOrder = async (orderId: string): Promise<DeleteOrderResponse> => {

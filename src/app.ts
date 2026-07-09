@@ -11,6 +11,7 @@ import { OrderRouter } from "./Modules/Orders/index.js";
 import { categoryRouter } from "./Modules/Catalog/Category/index.js";
 import { initMessaging } from "./messaging/index.js";
 import { startOrderCreatedConsumer } from "./Modules/Inventory/consumers/orderCreatedConsumer.js";
+import { startOrderCancelledConsumer } from "./Modules/Inventory/consumers/orderCancelledConsumer.js";
 import { startInventoryStockConsumer } from "./Modules/Orders/consumers/inventoryStockConsumer.js";
 import { startPendingOrderSweep } from "./Modules/Orders/jobs/pendingOrderSweep.js";
 
@@ -23,6 +24,7 @@ const app = express();
   try {
     await initMessaging();
     await startOrderCreatedConsumer();
+    await startOrderCancelledConsumer();
     await startInventoryStockConsumer();
     startPendingOrderSweep();
     console.log("[App] RabbitMQ messaging initialized");

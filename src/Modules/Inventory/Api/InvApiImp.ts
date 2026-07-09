@@ -66,4 +66,11 @@ export class InventoryApiImp implements InventoryApi {
   ): Promise<void> => {
     await this.inventoryService.decrementStockForOrderItems(items, tx);
   };
+
+  incrementStockForOrderItems = async (
+    items: Array<{ productVariantId: string; quantity: number }>,
+    tx: PrismaClient,
+  ): Promise<void> => {
+    await this.inventoryService.incrementStockForOrderItems(items, tx);
+  };
 }

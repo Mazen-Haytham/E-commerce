@@ -54,6 +54,29 @@ export async function startOrderCreatedConsumer(): Promise<void> {
             return null;
           }
 
+          // Check if order is already cancelled before reserving stock
+          const orderResult = await tx.$queryRaw<Array<{ status: string }>>`
+            SELECT status::text FROM "orders"."Order" 
+            WHERE id = ${payload.orderId}::uuid 
+            FOR UPDATE
+          `;
+
+          if (orderResult.length > 0 && orderResult[0].status === 'cancelled') {
+            console.log(
+              `[InventoryOrderCreatedConsumer] order ${payload.orderId} was already cancelled before reservation, skipping`,
+            );
+            
+            // Mark event as processed so we don't retry it infinitely, 
+            // but return null so no StockReserved event is produced.
+            await tx.processedEvent.create({
+              data: {
+                eventId: envelope.eventId,
+                consumerName: CONSUMER_NAME,
+              },
+            });
+            return null;
+          }
+
           console.log("[InventoryOrderCreatedConsumer] decrementing stock", {
             eventId: envelope.eventId,
             orderId: payload.orderId,

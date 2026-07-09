@@ -51,7 +51,10 @@ export interface OrderRepo {
   ): Promise<UpdateOrderStatusResponse>;
   deleteOrder(orderId: string, db: PrismaClient): Promise<DeleteOrderResponse>;
   findOrderById(orderId: string): Promise<GetOrderResponse | null>;
-
+  findOrderStatusById(
+    orderId: string,
+    db: PrismaClient,
+  ): Promise<{ status: string; items: Array<{ productVariantId: string; quantity: number }> } | null>;
   // Payment Operations
   createPayment(
     input: CreatePaymentInput,

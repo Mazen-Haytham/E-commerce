@@ -32,4 +32,8 @@ export interface InventoryApi {
     items: OrderItemForInventory[],
     tx: PrismaClient,
   ): Promise<void>;
+  incrementStockForOrderItems(
+    items: OrderItemForInventory[],
+    tx: PrismaClient,
+  ): Promise<void>;
 }

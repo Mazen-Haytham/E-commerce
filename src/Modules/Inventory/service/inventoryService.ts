@@ -260,4 +260,32 @@ export class InventoryService {
       }
     }
   };
+
+  incrementStockForOrderItems = async (
+    items: Array<{ productVariantId: string; quantity: number }>,
+    db: PrismaClient = prisma as unknown as PrismaClient,
+  ): Promise<void> => {
+    for (const item of items) {
+      const allInventoryStocks = await this.getProductVariantStocksForDecrement(
+        item.productVariantId,
+        db,
+      );
+
+      if (allInventoryStocks.length === 0) {
+        throw new AppError(
+          `No inventory location found for product variant ${item.productVariantId}`,
+          400,
+        );
+      }
+
+      await this.updateStockLevel(
+        {
+          productVariantId: item.productVariantId,
+          inventoryId: allInventoryStocks[0].inventoryId,
+          stockLevel: item.quantity,
+        },
+        db,
+      );
+    }
+  };
 }

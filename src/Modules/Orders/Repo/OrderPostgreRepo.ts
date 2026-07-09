@@ -318,6 +318,26 @@ export class OrderPostgreSqlRepo implements OrderRepo {
     return order;
   };
 
+  findOrderStatusById = async (
+    orderId: string,
+    db: PrismaClient,
+  ): Promise<{ status: string; items: Array<{ productVariantId: string; quantity: number }> } | null> => {
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      select: {
+        status: true,
+        items: {
+          select: {
+            productVariantId: true,
+            quantity: true,
+          },
+        },
+      },
+    });
+
+    return order;
+  };
+
   findPaymentMethodById = async (paymentMethodId: string): Promise<boolean> => {
     const paymentMethod = await prisma.paymentMethod.findUnique({
       where: { id: paymentMethodId },
