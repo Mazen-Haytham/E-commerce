@@ -6,6 +6,8 @@ import { OutboxRepo } from "../../../shared/outbox/outboxRepo.js";
 import { InventoryService } from "../service/inventoryService.js";
 import { PrismaInventory } from "../repo/inventoryRepo.js";
 import { InventoryApiImp } from "../Api/InvApiImp.js";
+import { PrismaClient } from "@prisma/client/extension";
+import { OrderReservationState } from "../../../generated/prisma/index.js";
 import {
   PendingInventoryStockEvent,
   STOCK_REJECTED_EVENT_TYPE,
@@ -25,6 +27,142 @@ const inventoryApi = new InventoryApiImp(
 );
 const outboxRepo = new OutboxRepo();
 
+export interface OrderCreatedDeps {
+  inventoryApi: Pick<InventoryApiImp, "decrementStockForOrderItems">;
+  outboxRepo: Pick<OutboxRepo, "insertEvent">;
+}
+
+/**
+ * Core transaction logic for the OrderCreated consumer.
+ * Exported so tests can call it directly without spinning up RabbitMQ.
+ *
+ * Implements these transitions against inventory.order_reservation_state:
+ *   T1 — no row           + OrderCreated  → decrement stock, insert RESERVED
+ *   T3 — PRE_CANCELLED    + OrderCreated  → skip decrement, update to CANCELLED_AFTER_RESERVE
+ *   T5 — terminal state   + any event     → no-op
+ */
+export async function handleOrderCreatedTx(
+  tx: PrismaClient,
+  eventId: string,
+  payload: OrderCreatedPayload,
+  deps: OrderCreatedDeps,
+): Promise<PendingInventoryStockEvent | null> {
+  // ── 1. Dedup check (unchanged) ─────────────────────────────────────────
+  const existing = await tx.processedEvent.findUnique({
+    where: {
+      eventId_consumerName: {
+        eventId,
+        consumerName: CONSUMER_NAME,
+      },
+    },
+  });
+
+  if (existing) {
+    console.log(
+      `[InventoryOrderCreatedConsumer] duplicate eventId=${eventId}, skipping`,
+    );
+    return null;
+  }
+
+  // ── 2. Lock the local reservation row (empty array = no row yet) ───────
+  const reservationRows = await tx.$queryRaw<
+    Array<{ state: string; items: unknown }>
+  >`
+    SELECT state, items
+    FROM inventory.order_reservation_state
+    WHERE order_id = ${payload.orderId}::uuid
+    FOR UPDATE
+  `;
+  const reservation = reservationRows[0] ?? null;
+
+  // ── 3. State machine ────────────────────────────────────────────────────
+
+  // T5: terminal state — no-op, do not modify row further
+  if (
+    reservation?.state === OrderReservationState.CANCELLED_AFTER_RESERVE ||
+    reservation?.state === OrderReservationState.REJECTED
+  ) {
+    console.log(
+      `[InventoryOrderCreatedConsumer] order ${payload.orderId} already in terminal state ${reservation.state}, no-op`,
+    );
+    await tx.processedEvent.create({
+      data: { eventId, consumerName: CONSUMER_NAME },
+    });
+    return null;
+  }
+
+  // T3: PRE_CANCELLED — cancel arrived before create; must NOT reserve stock
+  if (reservation?.state === OrderReservationState.PRE_CANCELLED) {
+    console.log(
+      `[InventoryOrderCreatedConsumer] skipped reservation, order ${payload.orderId} was pre-cancelled`,
+    );
+    await tx.orderReservation.update({
+      where: { orderId: payload.orderId },
+      data: { state: OrderReservationState.CANCELLED_AFTER_RESERVE },
+    });
+    await tx.processedEvent.create({
+      data: { eventId, consumerName: CONSUMER_NAME },
+    });
+    return null;
+  }
+
+  // T1: no row — happy path: decrement stock and record RESERVED
+  if (reservation === null) {
+    console.log("[InventoryOrderCreatedConsumer] decrementing stock", {
+      eventId,
+      orderId: payload.orderId,
+      userId: payload.userId,
+      items: payload.items,
+    });
+
+    // Existing stock-decrement logic — unchanged
+    await deps.inventoryApi.decrementStockForOrderItems(payload.items, tx);
+
+    await tx.orderReservation.create({
+      data: {
+        orderId: payload.orderId,
+        state: OrderReservationState.RESERVED,
+      },
+    });
+
+    const newEventId = randomUUID();
+    const occurredAt = new Date().toISOString();
+    const stockReservedPayload: StockReservedPayload = {
+      orderId: payload.orderId,
+      originalEventId: eventId,
+    };
+
+    await deps.outboxRepo.insertEvent(tx, {
+      eventId: newEventId,
+      aggregateId: payload.orderId,
+      aggregateType: "InventoryStock",
+      eventType: STOCK_RESERVED_EVENT_TYPE,
+      payload: stockReservedPayload,
+    });
+
+    await tx.processedEvent.create({
+      data: { eventId, consumerName: CONSUMER_NAME },
+    });
+
+    return {
+      eventId: newEventId,
+      eventType: STOCK_RESERVED_EVENT_TYPE,
+      occurredAt,
+      routingKey: ROUTING_KEYS.INVENTORY_STOCK_RESERVED,
+      payload: stockReservedPayload,
+    };
+  }
+
+  // Unexpected state (PENDING_CREATE or anything else) — no-op, log
+  console.log(
+    `[InventoryOrderCreatedConsumer] order ${payload.orderId} in unexpected reservation state ${reservation.state}, no-op`,
+  );
+  await tx.processedEvent.create({
+    data: { eventId, consumerName: CONSUMER_NAME },
+  });
+  return null;
+}
+
 export async function startOrderCreatedConsumer(): Promise<void> {
   await startConsumer({
     queue: QUEUES.INVENTORY_ORDER_EVENTS,
@@ -37,86 +175,14 @@ export async function startOrderCreatedConsumer(): Promise<void> {
       let pendingEvent: PendingInventoryStockEvent | null = null;
 
       try {
-        pendingEvent = await prisma.$transaction(async (tx) => {
-          const existing = await tx.processedEvent.findUnique({
-            where: {
-              eventId_consumerName: {
-                eventId: envelope.eventId,
-                consumerName: CONSUMER_NAME,
-              },
-            },
-          });
-
-          if (existing) {
-            console.log(
-              `[InventoryOrderCreatedConsumer] duplicate eventId=${envelope.eventId}, skipping`,
-            );
-            return null;
-          }
-
-          // Check if order is already cancelled before reserving stock
-          const orderResult = await tx.$queryRaw<Array<{ status: string }>>`
-            SELECT status::text FROM "orders"."Order" 
-            WHERE id = ${payload.orderId}::uuid 
-            FOR UPDATE
-          `;
-
-          if (orderResult.length > 0 && orderResult[0].status === 'cancelled') {
-            console.log(
-              `[InventoryOrderCreatedConsumer] order ${payload.orderId} was already cancelled before reservation, skipping`,
-            );
-            
-            // Mark event as processed so we don't retry it infinitely, 
-            // but return null so no StockReserved event is produced.
-            await tx.processedEvent.create({
-              data: {
-                eventId: envelope.eventId,
-                consumerName: CONSUMER_NAME,
-              },
-            });
-            return null;
-          }
-
-          console.log("[InventoryOrderCreatedConsumer] decrementing stock", {
-            eventId: envelope.eventId,
-            orderId: payload.orderId,
-            userId: payload.userId,
-            items: payload.items,
-            routingKey,
-          });
-
-          await inventoryApi.decrementStockForOrderItems(payload.items, tx);
-
-          const eventId = randomUUID();
-          const occurredAt = new Date().toISOString();
-          const stockReservedPayload: StockReservedPayload = {
-            orderId: payload.orderId,
-            originalEventId: envelope.eventId,
-          };
-
-          await outboxRepo.insertEvent(tx, {
-            eventId,
-            aggregateId: payload.orderId,
-            aggregateType: "InventoryStock",
-            eventType: STOCK_RESERVED_EVENT_TYPE,
-            payload: stockReservedPayload,
-          });
-
-          await tx.processedEvent.create({
-            data: {
-              eventId: envelope.eventId,
-              consumerName: CONSUMER_NAME,
-            },
-          });
-
-          return {
-            eventId,
-            eventType: STOCK_RESERVED_EVENT_TYPE,
-            occurredAt,
-            routingKey: ROUTING_KEYS.INVENTORY_STOCK_RESERVED,
-            payload: stockReservedPayload,
-          };
-        });
+        pendingEvent = await prisma.$transaction((tx) =>
+          handleOrderCreatedTx(
+            tx as unknown as PrismaClient,
+            envelope.eventId,
+            payload,
+            { inventoryApi, outboxRepo },
+          ),
+        );
       } catch (error) {
         pendingEvent = await recordStockRejectedEvent(
           payload.orderId,
@@ -169,12 +235,19 @@ async function recordStockRejectedEvent(
       reason,
     };
 
-    await outboxRepo.insertEvent(tx, {
+    await outboxRepo.insertEvent(tx as unknown as PrismaClient, {
       eventId,
       aggregateId: orderId,
       aggregateType: "InventoryStock",
       eventType: STOCK_REJECTED_EVENT_TYPE,
       payload: stockRejectedPayload,
+    });
+
+    // Mark reservation as REJECTED so any subsequent event is a no-op (T5)
+    await tx.orderReservation.upsert({
+      where: { orderId },
+      create: { orderId, state: OrderReservationState.REJECTED },
+      update: { state: OrderReservationState.REJECTED },
     });
 
     await tx.processedEvent.create({

@@ -116,7 +116,6 @@ model ProductVariant {
   pricing        Pricing[]
   product        Product        @relation(fields: [productId], references: [id])
   images         VariantImage[]
-  stock          ProductStock[]
   orderItems     OrderItem[]
   cartItems      CartItem[]
 
@@ -198,9 +197,28 @@ model ProductStock {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   inventory        Inventory      @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
-  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
 
   @@id([productVariantId, inventoryId])
+  @@schema("inventory")
+}
+
+enum OrderReservationState {
+  PENDING_CREATE
+  RESERVED
+  PRE_CANCELLED
+  CANCELLED_AFTER_RESERVE
+  REJECTED
+
+  @@schema("inventory")
+}
+
+model OrderReservation {
+  orderId   String                @id @map("order_id") @db.Uuid
+  state     OrderReservationState
+  items     Json?
+  updatedAt DateTime              @default(now()) @updatedAt @map("updated_at")
+
+  @@map("order_reservation_state")
   @@schema("inventory")
 }
 
