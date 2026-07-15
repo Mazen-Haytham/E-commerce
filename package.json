@@ -7,7 +7,9 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "test:integration": "node --import tsx --test \"src/**/*.integration.test.ts\"",
     "dev": "tsx watch src/server.ts",
-    "build": "tsc && cpy \"src/generated/**/*\" dist/generated --parents",
+    "prisma:generate": "prisma generate && prisma generate --config inventory-service/prisma.config.ts",
+    "prisma:migrate": "prisma migrate deploy && prisma migrate deploy --config inventory-service/prisma.config.ts",
+    "build": "npm run prisma:generate && tsc && cpy \"src/generated/**/*\" dist/generated --parents",
     "start": "node dist/server.js"
   },
   "prisma": {

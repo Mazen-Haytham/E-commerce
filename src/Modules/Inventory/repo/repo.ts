@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client/extension";
+import { PrismaClient } from "../../../generated/inventory-prisma/index.js";
 import {
   AddInventoryInput,
   AddInventoryResponse,

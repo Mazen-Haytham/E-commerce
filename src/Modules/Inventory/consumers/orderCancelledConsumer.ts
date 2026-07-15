@@ -1,11 +1,11 @@
 import { startConsumer } from "../../../messaging/consumer.js";
 import { QUEUES } from "../../../shared/exchnage.js";
-import { prisma } from "../../../shared/prisma.js";
+import { inventoryPrisma } from "../../../shared/inventoryPrisma.js";
 import { InventoryService } from "../service/inventoryService.js";
 import { PrismaInventory } from "../repo/inventoryRepo.js";
 import { InventoryApiImp } from "../Api/InvApiImp.js";
-import { PrismaClient } from "@prisma/client/extension";
-import { OrderReservationState } from "../../../generated/prisma/index.js";
+import { PrismaClient } from "../../../generated/inventory-prisma/index.js";
+import { OrderReservationState } from "../../../generated/inventory-prisma/index.js";
 import {
   ORDER_CANCELLED_EVENT_TYPE,
   OrderCancelledPayload,
@@ -142,13 +142,10 @@ export async function startOrderCancelledConsumer(): Promise<void> {
       const payload = envelope.payload as OrderCancelledPayload;
 
       try {
-        await prisma.$transaction((tx) =>
-          handleOrderCancelledTx(
-            tx as unknown as PrismaClient,
-            envelope.eventId,
-            payload,
-            { inventoryApi },
-          ),
+        await inventoryPrisma.$transaction((tx) =>
+          handleOrderCancelledTx(tx as PrismaClient, envelope.eventId, payload, {
+            inventoryApi,
+          }),
         );
       } catch (error) {
         const reason =

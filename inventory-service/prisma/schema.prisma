@@ -1,0 +1,81 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../../src/generated/inventory-prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["inventory"]
+}
+
+model Inventory {
+  id        String         @id @default(uuid())
+  name      String
+  location  String
+  deletedAt DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  stock     ProductStock[]
+
+  @@unique([name, location])
+  @@schema("inventory")
+}
+
+model ProductStock {
+  productVariantId String
+  inventoryId      String
+  stockLevel       Int       @default(0)
+  restockAlert     Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  inventory        Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@id([productVariantId, inventoryId])
+  @@schema("inventory")
+}
+
+enum OrderReservationState {
+  PENDING_CREATE
+  RESERVED
+  PRE_CANCELLED
+  CANCELLED_AFTER_RESERVE
+  REJECTED
+
+  @@schema("inventory")
+}
+
+model OrderReservation {
+  orderId   String                @id @map("order_id") @db.Uuid
+  state     OrderReservationState
+  items     Json?
+  updatedAt DateTime              @default(now()) @updatedAt @map("updated_at")
+
+  @@map("order_reservation_state")
+  @@schema("inventory")
+}
+
+model OutboxEvent {
+  id            BigInt    @id @default(autoincrement())
+  eventId       String    @unique @map("event_id") @db.Uuid
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  aggregateType String    @map("aggregate_type") @db.VarChar(50)
+  eventType     String    @map("event_type") @db.VarChar(50)
+  payload       Json
+  status        String?   @default("PENDING") @db.VarChar(20)
+  createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  publishedAt   DateTime? @map("published_at") @db.Timestamp(6)
+
+  @@map("outbox_events")
+  @@schema("inventory")
+}
+
+model ProcessedEvent {
+  eventId      String    @map("event_id") @db.Uuid
+  consumerName String    @map("consumer_name") @db.VarChar(100)
+  processedAt  DateTime? @default(now()) @map("processed_at") @db.Timestamp(6)
+
+  @@unique([eventId, consumerName], map: "processed_events_event_id_consumer_name_key")
+  @@map("processed_events")
+  @@schema("inventory")
+}

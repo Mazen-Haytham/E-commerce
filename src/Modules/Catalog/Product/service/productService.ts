@@ -11,6 +11,7 @@ import {
 } from "../types/types.js";
 import { redis } from "../../../../shared/redis.js";
 import { prisma } from "../../../../shared/prisma.js";
+import { inventoryPrisma } from "../../../../shared/inventoryPrisma.js";
 import { PrismaClient } from "@prisma/client/extension";
 import { addProductVariantInInventoryInput } from "../../../Inventory/types/types.js";
 import { InventoryApi } from "../../../Inventory/Api/InvApi.js";
@@ -269,7 +270,7 @@ export class ProductService {
         if (inventoryInputs.length > 0) {
           await this.inventoryApi.addProductVariantInInventory(
             inventoryInputs,
-            tx,
+            inventoryPrisma,
           );
         }
       } catch (error) {

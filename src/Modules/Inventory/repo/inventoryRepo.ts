@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client/extension";
+import { PrismaClient } from "../../../generated/inventory-prisma/index.js";
 import {
   AddInventoryInput,
   AddInventoryResponse,
@@ -12,7 +12,6 @@ import {
   updateProductVariantStockLevel,
 } from "../types/types.js";
 import { Repo } from "./repo.js";
-import { prisma } from "../../../shared/prisma.js";
 
 export class PrismaInventory implements Repo {
   async getAllInventories(

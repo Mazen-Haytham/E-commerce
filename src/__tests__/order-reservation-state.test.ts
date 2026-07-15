@@ -3,7 +3,7 @@
  *
  * Tests run against a real Postgres database (same pattern as
  * order-stock-concurrency.integration.test.ts). RabbitMQ is never touched —
- * we call the exported handler functions directly inside prisma.$transaction.
+ * we call the exported handler functions directly inside inventoryPrisma.$transaction.
  *
  * Covered transitions:
  *   T1 — no row + OrderCreated        → RESERVED, stock decremented
@@ -16,13 +16,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "crypto";
 import { prisma } from "../shared/prisma.js";
+import { inventoryPrisma } from "../shared/inventoryPrisma.js";
 import { redis } from "../shared/redis.js";
-import { PrismaClient } from "@prisma/client/extension";
-import { OrderReservationState } from "../generated/prisma/index.js";
+import { OrderReservationState } from "../generated/inventory-prisma/index.js";
 import { PrismaInventory } from "../Modules/Inventory/repo/inventoryRepo.js";
 import { InventoryService } from "../Modules/Inventory/service/inventoryService.js";
 import { InventoryApiImp } from "../Modules/Inventory/Api/InvApiImp.js";
-import { OutboxRepo } from "../shared/outbox/outboxRepo.js";
+import { InventoryOutboxRepo } from "../Modules/Inventory/outbox/inventoryOutboxRepo.js";
 import {
   handleOrderCreatedTx,
   OrderCreatedDeps,
@@ -36,13 +36,14 @@ import {
 const inventoryApi = new InventoryApiImp(
   new InventoryService(new PrismaInventory()),
 );
-const outboxRepo = new OutboxRepo();
+const outboxRepo = new InventoryOutboxRepo();
 const createdDeps: OrderCreatedDeps = { inventoryApi, outboxRepo };
 const cancelledDeps: OrderCancelledDeps = { inventoryApi };
 
 test.after(async () => {
   redis.disconnect();
   await prisma.$disconnect();
+  await inventoryPrisma.$disconnect();
 });
 
 // ── Fixture helpers ────────────────────────────────────────────────────────
@@ -53,44 +54,43 @@ test.after(async () => {
  */
 async function createStockFixture(stockLevel: number) {
   const suffix = randomUUID();
-  return prisma.$transaction(async (tx) => {
-    const product = await tx.product.create({
-      data: {
-        name: `Reservation test product ${suffix}`,
-        producer: "Integration Test",
-        variants: {
-          create: { sku: `rsv-${suffix}`, weight: "1kg", price: 10 },
-        },
-      },
-      include: { variants: true },
-    });
 
-    const inventory = await tx.inventory.create({
-      data: {
-        name: `Reservation test inv ${suffix}`,
-        location: `rsv-${suffix}`,
+  const product = await prisma.product.create({
+    data: {
+      name: `Reservation test product ${suffix}`,
+      producer: "Integration Test",
+      variants: {
+        create: { sku: `rsv-${suffix}`, weight: "1kg", price: 10 },
       },
-    });
+    },
+    include: { variants: true },
+  });
 
-    await tx.productStock.create({
-      data: {
-        productVariantId: product.variants[0].id,
-        inventoryId: inventory.id,
-        stockLevel,
-        restockAlert: 0,
-      },
-    });
+  const inventory = await inventoryPrisma.inventory.create({
+    data: {
+      name: `Reservation test inv ${suffix}`,
+      location: `rsv-${suffix}`,
+    },
+  });
 
-    return {
+  await inventoryPrisma.productStock.create({
+    data: {
       productVariantId: product.variants[0].id,
       inventoryId: inventory.id,
-    };
+      stockLevel,
+      restockAlert: 0,
+    },
   });
+
+  return {
+    productVariantId: product.variants[0].id,
+    inventoryId: inventory.id,
+  };
 }
 
 /** Reads the current stock level for a (variant, inventory) pair. */
 async function readStockLevel(productVariantId: string, inventoryId: string) {
-  const row = await prisma.productStock.findUniqueOrThrow({
+  const row = await inventoryPrisma.productStock.findUniqueOrThrow({
     where: { productVariantId_inventoryId: { productVariantId, inventoryId } },
     select: { stockLevel: true },
   });
@@ -99,7 +99,7 @@ async function readStockLevel(productVariantId: string, inventoryId: string) {
 
 /** Reads the current OrderReservation row (null if absent). */
 async function readReservation(orderId: string) {
-  return prisma.orderReservation.findUnique({ where: { orderId } });
+  return inventoryPrisma.orderReservation.findUnique({ where: { orderId } });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -118,13 +118,8 @@ test("T1: no reservation row + OrderCreated → inserts RESERVED row and decreme
     items: [{ productVariantId, quantity }],
   };
 
-  const result = await prisma.$transaction((tx) =>
-    handleOrderCreatedTx(
-      tx as unknown as PrismaClient,
-      eventId,
-      payload,
-      createdDeps,
-    ),
+  const result = await inventoryPrisma.$transaction((tx) =>
+    handleOrderCreatedTx(tx, eventId, payload, createdDeps),
   );
 
   // Should return a StockReserved pending event
@@ -158,13 +153,8 @@ test("T2: no reservation row + OrderCancelled → inserts PRE_CANCELLED row, sto
     items: [{ productVariantId, quantity }],
   };
 
-  await prisma.$transaction((tx) =>
-    handleOrderCancelledTx(
-      tx as unknown as PrismaClient,
-      eventId,
-      payload,
-      cancelledDeps,
-    ),
+  await inventoryPrisma.$transaction((tx) =>
+    handleOrderCancelledTx(tx, eventId, payload, cancelledDeps),
   );
 
   // Reservation row should be PRE_CANCELLED with items stored
@@ -196,7 +186,7 @@ test("T3: PRE_CANCELLED row + OrderCreated → updates to CANCELLED_AFTER_RESERV
   const { productVariantId, inventoryId } = await createStockFixture(8);
 
   // Pre-condition: cancel arrived first → PRE_CANCELLED row already exists
-  await prisma.orderReservation.create({
+  await inventoryPrisma.orderReservation.create({
     data: {
       orderId,
       state: OrderReservationState.PRE_CANCELLED,
@@ -212,13 +202,8 @@ test("T3: PRE_CANCELLED row + OrderCreated → updates to CANCELLED_AFTER_RESERV
     items: [{ productVariantId, quantity }],
   };
 
-  const result = await prisma.$transaction((tx) =>
-    handleOrderCreatedTx(
-      tx as unknown as PrismaClient,
-      eventId,
-      payload,
-      createdDeps,
-    ),
+  const result = await inventoryPrisma.$transaction((tx) =>
+    handleOrderCreatedTx(tx, eventId, payload, createdDeps),
   );
 
   // Must NOT produce a StockReserved event
@@ -255,7 +240,7 @@ test("T4: RESERVED row + OrderCancelled → updates to CANCELLED_AFTER_RESERVE a
   );
 
   // Pre-condition: OrderCreated was already processed → RESERVED row exists
-  await prisma.orderReservation.create({
+  await inventoryPrisma.orderReservation.create({
     data: { orderId, state: OrderReservationState.RESERVED },
   });
 
@@ -265,13 +250,8 @@ test("T4: RESERVED row + OrderCancelled → updates to CANCELLED_AFTER_RESERVE a
     items: [{ productVariantId, quantity }],
   };
 
-  await prisma.$transaction((tx) =>
-    handleOrderCancelledTx(
-      tx as unknown as PrismaClient,
-      eventId,
-      payload,
-      cancelledDeps,
-    ),
+  await inventoryPrisma.$transaction((tx) =>
+    handleOrderCancelledTx(tx, eventId, payload, cancelledDeps),
   );
 
   // Row should be CANCELLED_AFTER_RESERVE
@@ -304,14 +284,14 @@ test("T5: CANCELLED_AFTER_RESERVE row + OrderCreated → no-op, row state unchan
   const stockBefore = await readStockLevel(productVariantId, inventoryId);
 
   // Pre-condition: order is already fully terminal
-  await prisma.orderReservation.create({
+  await inventoryPrisma.orderReservation.create({
     data: { orderId, state: OrderReservationState.CANCELLED_AFTER_RESERVE },
   });
 
   // Fire OrderCreated against a terminal row
-  const createdResult = await prisma.$transaction((tx) =>
+  const createdResult = await inventoryPrisma.$transaction((tx) =>
     handleOrderCreatedTx(
-      tx as unknown as PrismaClient,
+      tx,
       createdEventId,
       { orderId, userId: randomUUID(), items: [{ productVariantId, quantity }] },
       createdDeps,
@@ -325,9 +305,9 @@ test("T5: CANCELLED_AFTER_RESERVE row + OrderCreated → no-op, row state unchan
   );
 
   // Fire OrderCancelled against the same terminal row (different eventId for dedup)
-  await prisma.$transaction((tx) =>
+  await inventoryPrisma.$transaction((tx) =>
     handleOrderCancelledTx(
-      tx as unknown as PrismaClient,
+      tx,
       cancelledEventId,
       { orderId, previousStatus: "cancelled", items: [{ productVariantId, quantity }] },
       cancelledDeps,

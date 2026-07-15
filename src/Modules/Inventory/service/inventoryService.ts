@@ -12,14 +12,14 @@ import {
   updateInventoryInput,
   updateProductVariantStockLevel,
 } from "../types/types.js";
-import { prisma } from "../../../shared/prisma.js";
-import { PrismaClient } from "@prisma/client/extension";
+import { inventoryPrisma } from "../../../shared/inventoryPrisma.js";
+import { PrismaClient } from "../../../generated/inventory-prisma/index.js";
 export class InventoryService {
   constructor(private readonly inventoryRepo: Repo) {}
 
   findInventoryByID = async (
     id: string,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<Inventory | null> => {
     const inv: Inventory | null = await this.inventoryRepo.findInventoryById(
       id,
@@ -30,7 +30,7 @@ export class InventoryService {
 
   findInventoryByNameAndLocation = async (
     input: findInventoryByNameAndLocationInput,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<findInventoryByNameAndLocationResponse | null> => {
     const inv: findInventoryByNameAndLocationResponse | null =
       await this.inventoryRepo.findInventoryByNameAndLocation(input, db);
@@ -39,7 +39,7 @@ export class InventoryService {
 
   addInventory = async (
     input: AddInventoryInput,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<AddInventoryResponse> => {
     const inv: findInventoryByNameAndLocationResponse | null =
       await this.findInventoryByNameAndLocation(input);
@@ -53,7 +53,7 @@ export class InventoryService {
 
   deactivateInventory = async (
     inventoryId: string,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<Inventory> => {
     const inv: Inventory | null = await this.findInventoryByID(inventoryId);
     if (!inv)
@@ -66,7 +66,7 @@ export class InventoryService {
   updateInventory = async (
     inventoryId: string,
     data: updateInventoryInput,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<Inventory> => {
     const inv: Inventory | null = await this.findInventoryByID(inventoryId);
     if (!inv)
@@ -89,7 +89,7 @@ export class InventoryService {
 
   getProductVariantFromInventory = async (
     input: getProductVariantStockFromInventoryInput,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<getProductVariantStockFromInventoryResponse | null> => {
     const stock: getProductVariantStockFromInventoryResponse | null =
       await this.inventoryRepo.getProductVariantFromInventory(input, db);
@@ -98,7 +98,7 @@ export class InventoryService {
 
   updateStockLevel = async (
     input: updateProductVariantStockLevel,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<updateProductVariantStockLevel> => {
     if (input.stockLevel === 0)
       throw new AppError(
@@ -130,7 +130,7 @@ export class InventoryService {
 
   addProductVariantInInventory = async (
     input: addProductVariantInInventoryInput[],
-    db: PrismaClient = prisma as unknown as PrismaClient,
+    db: PrismaClient = inventoryPrisma,
   ): Promise<addProductVariantInInventoryInput[]> => {
     const success: addProductVariantInInventoryInput[] = [];
 
@@ -156,7 +156,7 @@ export class InventoryService {
   };
 
   getAllInventories = async (
-    db = prisma,
+    db = inventoryPrisma,
     filters?: findInventoryByNameAndLocationInput,
   ): Promise<Inventory[]> => {
     const inventories: Inventory[] = await this.inventoryRepo.getAllInventories(
@@ -167,7 +167,7 @@ export class InventoryService {
   };
   getProductVariantStock = async (
     variantId: string,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<getProductVariantStockFromInventoryResponse[]> => {
     const stocks = await this.inventoryRepo.getProductVariant(variantId, db);
     return stocks;
@@ -175,7 +175,7 @@ export class InventoryService {
 
   getTotalProductVariantStockLevel = async (
     variantId: string,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<number> => {
     const totalStock =
       await this.inventoryRepo.getTotalProductVariantStockLevel(variantId, db);
@@ -184,7 +184,7 @@ export class InventoryService {
 
   getTotalProductVariantStockLevelWithLock = async (
     variantId: string,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<number> => {
     const totalStock =
       await this.inventoryRepo.getTotalProductVariantStockLevelWithLock(
@@ -196,7 +196,7 @@ export class InventoryService {
 
   getProductVariantStocksForDecrement = async (
     variantId: string,
-    db = prisma,
+    db = inventoryPrisma,
   ): Promise<addProductVariantInInventoryInput[]> => {
     const stocks = await this.inventoryRepo.getProductVariantStocksForDecrement(
       variantId,
@@ -207,7 +207,7 @@ export class InventoryService {
 
   decrementStockForOrderItems = async (
     items: Array<{ productVariantId: string; quantity: number }>,
-    db: PrismaClient = prisma as unknown as PrismaClient,
+    db: PrismaClient = inventoryPrisma,
   ): Promise<void> => {
     for (const item of items) {
       // Get all inventory records for this variant, ordered by inventory ID
@@ -263,7 +263,7 @@ export class InventoryService {
 
   incrementStockForOrderItems = async (
     items: Array<{ productVariantId: string; quantity: number }>,
-    db: PrismaClient = prisma as unknown as PrismaClient,
+    db: PrismaClient = inventoryPrisma,
   ): Promise<void> => {
     for (const item of items) {
       const allInventoryStocks = await this.getProductVariantStocksForDecrement(

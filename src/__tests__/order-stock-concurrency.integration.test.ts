@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "crypto";
 import { prisma } from "../shared/prisma.js";
+import { inventoryPrisma } from "../shared/inventoryPrisma.js";
 import { redis } from "../shared/redis.js";
 import { OrderService } from "../Modules/Orders/Service/OrderService.js";
 import { OrderPostgreSqlRepo } from "../Modules/Orders/Repo/OrderPostgreRepo.js";
@@ -36,64 +37,62 @@ const orderService = new OrderService(
 test.after(async () => {
   redis.disconnect();
   await prisma.$disconnect();
+  await inventoryPrisma.$disconnect();
 });
 
 test("FOR UPDATE stock decrement lock prevents overselling under concurrent order reservations", async () => {
   const suffix = randomUUID();
   const userId = randomUUID();
 
-  const { productVariantId, inventoryId } = await prisma.$transaction(
-    async (tx) => {
-      await tx.user.create({
-        data: {
-          id: userId,
-          email: `stock-lock-${suffix}@example.test`,
-          firstName: "Stock",
-          lastName: "Lock",
-          password: "not-used",
-          phone: `lock-${suffix.slice(0, 12)}`,
-        },
-      });
+  const productVariantId = await prisma.$transaction(async (tx) => {
+    await tx.user.create({
+      data: {
+        id: userId,
+        email: `stock-lock-${suffix}@example.test`,
+        firstName: "Stock",
+        lastName: "Lock",
+        password: "not-used",
+        phone: `lock-${suffix.slice(0, 12)}`,
+      },
+    });
 
-      const product = await tx.product.create({
-        data: {
-          name: `Stock lock product ${suffix}`,
-          producer: "Integration Test",
-          variants: {
-            create: {
-              sku: `stock-lock-${suffix}`,
-              weight: "1kg",
-              price: 10,
-            },
+    const product = await tx.product.create({
+      data: {
+        name: `Stock lock product ${suffix}`,
+        producer: "Integration Test",
+        variants: {
+          create: {
+            sku: `stock-lock-${suffix}`,
+            weight: "1kg",
+            price: 10,
           },
         },
-        include: {
-          variants: true,
-        },
-      });
+      },
+      include: {
+        variants: true,
+      },
+    });
 
-      const inventory = await tx.inventory.create({
-        data: {
-          name: `Stock lock inventory ${suffix}`,
-          location: `test-${suffix}`,
-        },
-      });
+    return product.variants[0].id;
+  });
 
-      await tx.productStock.create({
-        data: {
-          productVariantId: product.variants[0].id,
-          inventoryId: inventory.id,
-          stockLevel: 1,
-          restockAlert: 0,
-        },
-      });
-
-      return {
-        productVariantId: product.variants[0].id,
-        inventoryId: inventory.id,
-      };
+  const inventory = await inventoryPrisma.inventory.create({
+    data: {
+      name: `Stock lock inventory ${suffix}`,
+      location: `test-${suffix}`,
     },
-  );
+  });
+
+  await inventoryPrisma.productStock.create({
+    data: {
+      productVariantId,
+      inventoryId: inventory.id,
+      stockLevel: 1,
+      restockAlert: 0,
+    },
+  });
+
+  const inventoryId = inventory.id;
 
   const orderInput = {
     userId,
@@ -115,16 +114,17 @@ test("FOR UPDATE stock decrement lock prevents overselling under concurrent orde
   assert.equal(createdOrders.length, 2);
 
   const reservationResults = await Promise.allSettled(
-    createdOrders.map((order) =>
-      prisma.$transaction(async (tx) => {
+    createdOrders.map(async (order) => {
+      await inventoryPrisma.$transaction(async (tx) => {
         await inventoryApi.decrementStockForOrderItems(order.items, tx);
-        return await tx.order.update({
-          where: { id: order.id },
-          data: { status: ORDER_STATUS.CONFIRMED },
-          select: { id: true, status: true },
-        });
-      }),
-    ),
+      });
+
+      return await prisma.order.update({
+        where: { id: order.id },
+        data: { status: ORDER_STATUS.CONFIRMED },
+        select: { id: true, status: true },
+      });
+    }),
   );
 
   const successfulReservations = reservationResults.filter(
@@ -138,7 +138,7 @@ test("FOR UPDATE stock decrement lock prevents overselling under concurrent orde
     `expected at most one confirmed reservation, got ${successfulReservations.length}`,
   );
 
-  const finalStock = await prisma.productStock.findUniqueOrThrow({
+  const finalStock = await inventoryPrisma.productStock.findUniqueOrThrow({
     where: {
       productVariantId_inventoryId: {
         productVariantId,

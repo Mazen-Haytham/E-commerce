@@ -1,6 +1,6 @@
 import { InventoryApi } from "./InvApi.js";
 import { InventoryService } from "../service/inventoryService.js";
-import { PrismaClient } from "@prisma/client/extension";
+import { PrismaClient } from "../../../generated/inventory-prisma/index.js";
 import {
   addProductVariantInInventoryInput,
   getProductVariantStockFromInventoryResponse,

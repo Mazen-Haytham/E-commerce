@@ -9,7 +9,7 @@ import {
   updateProductVariantStockLevel,
 } from "../types/types.js";
 import { AppError } from "../../../utils/AppError.js";
-import { prisma } from "../../../shared/prisma.js";
+import { inventoryPrisma } from "../../../shared/inventoryPrisma.js";
 
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
@@ -150,7 +150,7 @@ export class InventoryController {
           );
       }
       const inventories: Inventory[] =
-        await this.inventoryService.getAllInventories(prisma, filters);
+        await this.inventoryService.getAllInventories(inventoryPrisma, filters);
       return res.status(200).send({
         status: "Success",
         data: inventories,

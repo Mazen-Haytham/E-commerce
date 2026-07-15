@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["catalog", "inventory", "orders", "users", "public"]
+  schemas  = ["catalog", "orders", "users", "public"]
 }
 
 model User {
@@ -174,52 +174,6 @@ model Pricing {
   productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
 
   @@schema("catalog")
-}
-
-model Inventory {
-  id        String         @id @default(uuid())
-  name      String
-  location  String
-  deletedAt DateTime?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  stock     ProductStock[]
-
-  @@unique([name, location])
-  @@schema("inventory")
-}
-
-model ProductStock {
-  productVariantId String
-  inventoryId      String
-  stockLevel       Int            @default(0)
-  restockAlert     Int            @default(0)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  inventory        Inventory      @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
-
-  @@id([productVariantId, inventoryId])
-  @@schema("inventory")
-}
-
-enum OrderReservationState {
-  PENDING_CREATE
-  RESERVED
-  PRE_CANCELLED
-  CANCELLED_AFTER_RESERVE
-  REJECTED
-
-  @@schema("inventory")
-}
-
-model OrderReservation {
-  orderId   String                @id @map("order_id") @db.Uuid
-  state     OrderReservationState
-  items     Json?
-  updatedAt DateTime              @default(now()) @updatedAt @map("updated_at")
-
-  @@map("order_reservation_state")
-  @@schema("inventory")
 }
 
 enum OrderStatus {

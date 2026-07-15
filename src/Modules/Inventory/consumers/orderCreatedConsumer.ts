@@ -1,13 +1,13 @@
 import { randomUUID } from "crypto";
 import { startConsumer } from "../../../messaging/consumer.js";
 import { QUEUES, ROUTING_KEYS } from "../../../shared/exchnage.js";
-import { prisma } from "../../../shared/prisma.js";
-import { OutboxRepo } from "../../../shared/outbox/outboxRepo.js";
+import { inventoryPrisma } from "../../../shared/inventoryPrisma.js";
+import { InventoryOutboxRepo } from "../outbox/inventoryOutboxRepo.js";
 import { InventoryService } from "../service/inventoryService.js";
 import { PrismaInventory } from "../repo/inventoryRepo.js";
 import { InventoryApiImp } from "../Api/InvApiImp.js";
-import { PrismaClient } from "@prisma/client/extension";
-import { OrderReservationState } from "../../../generated/prisma/index.js";
+import { PrismaClient } from "../../../generated/inventory-prisma/index.js";
+import { OrderReservationState } from "../../../generated/inventory-prisma/index.js";
 import {
   PendingInventoryStockEvent,
   STOCK_REJECTED_EVENT_TYPE,
@@ -25,11 +25,11 @@ const CONSUMER_NAME = "inventory.order-created-stock-decrement";
 const inventoryApi = new InventoryApiImp(
   new InventoryService(new PrismaInventory()),
 );
-const outboxRepo = new OutboxRepo();
+const outboxRepo = new InventoryOutboxRepo();
 
 export interface OrderCreatedDeps {
   inventoryApi: Pick<InventoryApiImp, "decrementStockForOrderItems">;
-  outboxRepo: Pick<OutboxRepo, "insertEvent">;
+  outboxRepo: Pick<InventoryOutboxRepo, "insertEvent">;
 }
 
 /**
@@ -175,13 +175,11 @@ export async function startOrderCreatedConsumer(): Promise<void> {
       let pendingEvent: PendingInventoryStockEvent | null = null;
 
       try {
-        pendingEvent = await prisma.$transaction((tx) =>
-          handleOrderCreatedTx(
-            tx as unknown as PrismaClient,
-            envelope.eventId,
-            payload,
-            { inventoryApi, outboxRepo },
-          ),
+        pendingEvent = await inventoryPrisma.$transaction((tx) =>
+          handleOrderCreatedTx(tx as PrismaClient, envelope.eventId, payload, {
+            inventoryApi,
+            outboxRepo,
+          }),
         );
       } catch (error) {
         pendingEvent = await recordStockRejectedEvent(
@@ -211,7 +209,7 @@ async function recordStockRejectedEvent(
     { originalEventId, orderId, reason },
   );
 
-  return await prisma.$transaction(async (tx) => {
+  return await inventoryPrisma.$transaction(async (tx) => {
     const existing = await tx.processedEvent.findUnique({
       where: {
         eventId_consumerName: {
@@ -235,7 +233,7 @@ async function recordStockRejectedEvent(
       reason,
     };
 
-    await outboxRepo.insertEvent(tx as unknown as PrismaClient, {
+    await outboxRepo.insertEvent(tx as PrismaClient, {
       eventId,
       aggregateId: orderId,
       aggregateType: "InventoryStock",

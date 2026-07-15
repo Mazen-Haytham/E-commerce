@@ -3,7 +3,7 @@ import {
   getProductVariantStockFromInventoryResponse,
   updateProductVariantStockLevel,
 } from "../types/types.js";
-import { PrismaClient } from "@prisma/client/extension";
+import { PrismaClient } from "../../../generated/inventory-prisma/index.js";
 
 export interface OrderItemForInventory {
   productVariantId: string;
