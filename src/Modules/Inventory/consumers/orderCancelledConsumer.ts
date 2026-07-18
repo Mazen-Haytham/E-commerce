@@ -145,7 +145,7 @@ export async function handleOrderCancelledTx(
 
 export async function startOrderCancelledConsumer(): Promise<void> {
   await startConsumer({
-    queue: QUEUES.INVENTORY_ORDER_EVENTS,
+    queue: QUEUES.INVENTORY_ORDER_CANCELLED_EVENTS,
     onMessage: async (envelope, routingKey) => {
       if (envelope.eventType !== ORDER_CANCELLED_EVENT_TYPE) {
         return;

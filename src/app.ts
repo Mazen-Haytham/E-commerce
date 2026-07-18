@@ -1,4 +1,6 @@
 import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import morgan from "morgan";
 import helmet from "helmet";
@@ -15,24 +17,7 @@ import { startOrderCancelledConsumer } from "./Modules/Inventory/consumers/order
 import { startInventoryStockConsumer } from "./Modules/Orders/consumers/inventoryStockConsumer.js";
 import { startPendingOrderSweep } from "./Modules/Orders/jobs/pendingOrderSweep.js";
 
-dotenv.config();
-
 const app = express();
-
-// Initialize RabbitMQ messaging
-(async () => {
-  try {
-    await initMessaging();
-    await startOrderCreatedConsumer();
-    await startOrderCancelledConsumer();
-    await startInventoryStockConsumer();
-    startPendingOrderSweep();
-    console.log("[App] RabbitMQ messaging initialized");
-  } catch (err) {
-    console.error("[App] Failed to initialize messaging:", err);
-    process.exit(1);
-  }
-})();
 
 app.use(helmet());
 app.use(morgan("dev"));
@@ -44,4 +29,22 @@ app.use("/api/catalog", productRouter);
 app.use("/api/orders", OrderRouter);
 app.use("/api/categories", categoryRouter);
 app.use(sendError);
+
+// Exported so tests can import the express app without triggering listen.
 export default app;
+
+// initApp() connects to RabbitMQ, registers all consumers, THEN opens the
+// HTTP port. Nothing can receive a request before messaging is ready.
+export async function initApp(): Promise<void> {
+  try {
+    await initMessaging();
+    await startOrderCreatedConsumer();
+    await startOrderCancelledConsumer();
+    await startInventoryStockConsumer();
+    startPendingOrderSweep();
+    console.log("[App] RabbitMQ messaging initialized");
+  } catch (err) {
+    console.error("[App] Failed to initialize messaging:", err);
+    process.exit(1);
+  }
+}

@@ -22,12 +22,18 @@ export async function setupTopology(): Promise<void> {
   // 3. One durable queue per consumer. Every queue gets `x-dead-letter-exchange`
   //    so a failed message automatically routes to the DLQ above.
 
-  await channel.assertQueue(QUEUES.INVENTORY_ORDER_EVENTS, {
+  await channel.assertQueue(QUEUES.INVENTORY_ORDER_CREATED_EVENTS, {
     durable: true,
     arguments: { "x-dead-letter-exchange": EXCHANGES.APP_DLX },
   });
-  await channel.bindQueue(QUEUES.INVENTORY_ORDER_EVENTS, EXCHANGES.APP, ROUTING_KEYS.ORDER_CREATED);
-  await channel.bindQueue(QUEUES.INVENTORY_ORDER_EVENTS, EXCHANGES.APP, ROUTING_KEYS.ORDER_CANCELLED);
+  await channel.bindQueue(QUEUES.INVENTORY_ORDER_CREATED_EVENTS, EXCHANGES.APP, ROUTING_KEYS.ORDER_CREATED);
+
+  await channel.assertQueue(QUEUES.INVENTORY_ORDER_CANCELLED_EVENTS, {
+    durable: true,
+    arguments: { "x-dead-letter-exchange": EXCHANGES.APP_DLX },
+  });
+  await channel.bindQueue(QUEUES.INVENTORY_ORDER_CANCELLED_EVENTS, EXCHANGES.APP, ROUTING_KEYS.ORDER_CANCELLED);
+
 
   await channel.assertQueue(QUEUES.ORDERS_INVENTORY_EVENTS, {
     durable: true,

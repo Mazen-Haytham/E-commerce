@@ -268,12 +268,6 @@ export class ProductPostgreSqlRepo implements ProductRepo {
         size: true,
         weight: true,
         price: true,
-        stock: {
-          select: {
-            stockLevel: true,
-            inventoryId: true,
-          },
-        },
         images: true,
       },
     });

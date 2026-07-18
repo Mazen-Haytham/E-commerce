@@ -177,7 +177,7 @@ export async function handleOrderCreatedTx(
 
 export async function startOrderCreatedConsumer(): Promise<void> {
   await startConsumer({
-    queue: QUEUES.INVENTORY_ORDER_EVENTS,
+    queue: QUEUES.INVENTORY_ORDER_CREATED_EVENTS,
     onMessage: async (envelope, routingKey) => {
       if (envelope.eventType !== ORDER_CREATED_EVENT_TYPE) {
         return;

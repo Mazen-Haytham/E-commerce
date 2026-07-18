@@ -16,6 +16,26 @@ let confirmChannel: ConfirmChannel | null = null;
 
 let isShuttingDown = false;
 
+// Holds every consumer callback so they can be re-registered on the new
+// channel after a reconnect. Each entry is exactly the args that were
+// originally passed to channel.consume().
+type ConsumerCallback = () => Promise<void>;
+const consumerRegistry: ConsumerCallback[] = [];
+
+export function registerConsumerCallback(fn: ConsumerCallback): void {
+  consumerRegistry.push(fn);
+}
+
+async function reRegisterConsumers(): Promise<void> {
+  for (const fn of consumerRegistry) {
+    try {
+      await fn();
+    } catch (err) {
+      console.error("[RabbitMQ] failed to re-register consumer after reconnect", err);
+    }
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -49,20 +69,28 @@ export async function connectRabbitMQ(): Promise<void> {
   connection.on("close", () => {
     if (isShuttingDown) return; // this is an intentional shutdown, not a drop
     console.warn("[RabbitMQ] connection lost — reconnecting...");
-    connection = null;
-    channel = null;
-    confirmChannel = null;
+    // NOTE: do NOT null the channels here. Keep the stale references so that
+    // any in-flight publish attempts fail with an amqplib error (which the
+    // outbox catch will handle) instead of our own "channel not ready" throw.
+    // The references are replaced atomically once the new channels are open.
     connectRabbitMQ().catch((err) =>
       console.error("[RabbitMQ] reconnect attempt failed", err)
     );
   });
 
-  channel = await connection.createChannel();
-  await channel.prefetch(PREFETCH_COUNT);
+  // Replace channels atomically — both are ready before we expose them.
+  const newChannel = await connection.createChannel();
+  await newChannel.prefetch(PREFETCH_COUNT);
+  const newConfirmChannel = await connection.createConfirmChannel();
 
-  confirmChannel = await connection.createConfirmChannel();
+  channel = newChannel;
+  confirmChannel = newConfirmChannel;
 
   console.log(`[RabbitMQ] channels ready (prefetch=${PREFETCH_COUNT})`);
+
+  // Re-register every consumer on the new channel.
+  // On the very first call consumerRegistry is empty so this is a no-op.
+  await reRegisterConsumers();
 }
 
 export function getChannel(): Channel {

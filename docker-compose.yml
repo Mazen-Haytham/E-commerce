@@ -82,8 +82,9 @@ services:
     volumes:
       - ./src:/app/src
       - ./prisma:/app/prisma
+      - ./inventory-service:/app/inventory-service
     # Run migrations before starting the app
-    command: sh -c "npx prisma migrate deploy && npm run dev"
+    command: sh -c "npm run prisma:migrate && npm run dev"
 
 volumes:
   postgres_data:
