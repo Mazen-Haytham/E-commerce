@@ -64,7 +64,67 @@ export async function handleOrderCreatedTx(
     return null;
   }
 
-  // ── 2. Lock the local reservation row (empty array = no row yet) ───────
+  // ── 2. Atomic insert — wins the race or detects conflict ───────────────
+  //
+  // FOR UPDATE locks nothing when no row exists, creating a race window where
+  // two concurrent handlers both read "no row" and both attempt INSERT, causing
+  // a unique-constraint violation on the second writer.
+  //
+  // Instead: attempt INSERT first with ON CONFLICT DO NOTHING RETURNING order_id.
+  // Whoever gets a row back owns the write; the loser falls back to
+  // SELECT … FOR UPDATE to read the now-existing row and act accordingly.
+  const insertedRows = await tx.$queryRaw<Array<{ order_id: string }>>`
+    INSERT INTO inventory.order_reservation_state (order_id, state)
+    VALUES (${payload.orderId}::uuid, 'RESERVED'::"inventory"."OrderReservationState")
+    ON CONFLICT (order_id) DO NOTHING
+    RETURNING order_id
+  `;
+
+  // ── 3. State machine ────────────────────────────────────────────────────
+
+  if (insertedRows.length > 0) {
+    // T1 happy path — we won the insert race; this is definitively the first
+    // writer. Run decrement and emit StockReserved. No further SELECT needed.
+    console.log("[InventoryOrderCreatedConsumer] decrementing stock", {
+      eventId,
+      orderId: payload.orderId,
+      userId: payload.userId,
+      items: payload.items,
+    });
+
+    await deps.inventoryApi.decrementStockForOrderItems(payload.items, tx);
+
+    const newEventId = randomUUID();
+    const occurredAt = new Date().toISOString();
+    const stockReservedPayload: StockReservedPayload = {
+      orderId: payload.orderId,
+      originalEventId: eventId,
+    };
+
+    await deps.outboxRepo.insertEvent(tx, {
+      eventId: newEventId,
+      aggregateId: payload.orderId,
+      aggregateType: "InventoryStock",
+      eventType: STOCK_RESERVED_EVENT_TYPE,
+      payload: stockReservedPayload,
+    });
+
+    await tx.processedEvent.create({
+      data: { eventId, consumerName: CONSUMER_NAME },
+    });
+
+    return {
+      eventId: newEventId,
+      eventType: STOCK_RESERVED_EVENT_TYPE,
+      occurredAt,
+      routingKey: ROUTING_KEYS.INVENTORY_STOCK_RESERVED,
+      payload: stockReservedPayload,
+    };
+  }
+
+  // INSERT returned no row → a row already exists (conflict). Fall back to
+  // SELECT … FOR UPDATE so we can read the current state and branch correctly.
+  // A conflict is NOT an error — it is a normal, expected racing outcome.
   const reservationRows = await tx.$queryRaw<
     Array<{ state: string; items: unknown }>
   >`
@@ -74,8 +134,6 @@ export async function handleOrderCreatedTx(
     FOR UPDATE
   `;
   const reservation = reservationRows[0] ?? null;
-
-  // ── 3. State machine ────────────────────────────────────────────────────
 
   // T5: terminal state — no-op, do not modify row further
   if (
@@ -106,56 +164,10 @@ export async function handleOrderCreatedTx(
     return null;
   }
 
-  // T1: no row — happy path: decrement stock and record RESERVED
-  if (reservation === null) {
-    console.log("[InventoryOrderCreatedConsumer] decrementing stock", {
-      eventId,
-      orderId: payload.orderId,
-      userId: payload.userId,
-      items: payload.items,
-    });
-
-    // Existing stock-decrement logic — unchanged
-    await deps.inventoryApi.decrementStockForOrderItems(payload.items, tx);
-
-    await tx.orderReservation.create({
-      data: {
-        orderId: payload.orderId,
-        state: OrderReservationState.RESERVED,
-      },
-    });
-
-    const newEventId = randomUUID();
-    const occurredAt = new Date().toISOString();
-    const stockReservedPayload: StockReservedPayload = {
-      orderId: payload.orderId,
-      originalEventId: eventId,
-    };
-
-    await deps.outboxRepo.insertEvent(tx, {
-      eventId: newEventId,
-      aggregateId: payload.orderId,
-      aggregateType: "InventoryStock",
-      eventType: STOCK_RESERVED_EVENT_TYPE,
-      payload: stockReservedPayload,
-    });
-
-    await tx.processedEvent.create({
-      data: { eventId, consumerName: CONSUMER_NAME },
-    });
-
-    return {
-      eventId: newEventId,
-      eventType: STOCK_RESERVED_EVENT_TYPE,
-      occurredAt,
-      routingKey: ROUTING_KEYS.INVENTORY_STOCK_RESERVED,
-      payload: stockReservedPayload,
-    };
-  }
-
-  // Unexpected state (PENDING_CREATE or anything else) — no-op, log
+  // Unexpected state (RESERVED set by another concurrent handler,
+  // PENDING_CREATE, or anything else) — no-op, log
   console.log(
-    `[InventoryOrderCreatedConsumer] order ${payload.orderId} in unexpected reservation state ${reservation.state}, no-op`,
+    `[InventoryOrderCreatedConsumer] order ${payload.orderId} in unexpected reservation state ${reservation?.state}, no-op`,
   );
   await tx.processedEvent.create({
     data: { eventId, consumerName: CONSUMER_NAME },

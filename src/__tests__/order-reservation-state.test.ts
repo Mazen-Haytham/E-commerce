@@ -31,6 +31,7 @@ import {
   handleOrderCancelledTx,
   OrderCancelledDeps,
 } from "../Modules/Inventory/consumers/orderCancelledConsumer.js";
+import { PrismaClient } from "@prisma/client/extension";
 
 // ── Shared deps ────────────────────────────────────────────────────────────
 const inventoryApi = new InventoryApiImp(
@@ -119,7 +120,7 @@ test("T1: no reservation row + OrderCreated → inserts RESERVED row and decreme
   };
 
   const result = await inventoryPrisma.$transaction((tx) =>
-    handleOrderCreatedTx(tx, eventId, payload, createdDeps),
+    handleOrderCreatedTx(tx as PrismaClient, eventId, payload, createdDeps),
   );
 
   // Should return a StockReserved pending event
@@ -154,7 +155,7 @@ test("T2: no reservation row + OrderCancelled → inserts PRE_CANCELLED row, sto
   };
 
   await inventoryPrisma.$transaction((tx) =>
-    handleOrderCancelledTx(tx, eventId, payload, cancelledDeps),
+    handleOrderCancelledTx(tx as PrismaClient, eventId, payload, cancelledDeps),
   );
 
   // Reservation row should be PRE_CANCELLED with items stored
@@ -203,7 +204,7 @@ test("T3: PRE_CANCELLED row + OrderCreated → updates to CANCELLED_AFTER_RESERV
   };
 
   const result = await inventoryPrisma.$transaction((tx) =>
-    handleOrderCreatedTx(tx, eventId, payload, createdDeps),
+    handleOrderCreatedTx(tx as PrismaClient, eventId, payload, createdDeps),
   );
 
   // Must NOT produce a StockReserved event
@@ -251,7 +252,7 @@ test("T4: RESERVED row + OrderCancelled → updates to CANCELLED_AFTER_RESERVE a
   };
 
   await inventoryPrisma.$transaction((tx) =>
-    handleOrderCancelledTx(tx, eventId, payload, cancelledDeps),
+    handleOrderCancelledTx(tx as PrismaClient, eventId, payload, cancelledDeps),
   );
 
   // Row should be CANCELLED_AFTER_RESERVE
@@ -291,7 +292,7 @@ test("T5: CANCELLED_AFTER_RESERVE row + OrderCreated → no-op, row state unchan
   // Fire OrderCreated against a terminal row
   const createdResult = await inventoryPrisma.$transaction((tx) =>
     handleOrderCreatedTx(
-      tx,
+      tx as PrismaClient,
       createdEventId,
       { orderId, userId: randomUUID(), items: [{ productVariantId, quantity }] },
       createdDeps,
@@ -307,7 +308,7 @@ test("T5: CANCELLED_AFTER_RESERVE row + OrderCreated → no-op, row state unchan
   // Fire OrderCancelled against the same terminal row (different eventId for dedup)
   await inventoryPrisma.$transaction((tx) =>
     handleOrderCancelledTx(
-      tx,
+      tx as PrismaClient,
       cancelledEventId,
       { orderId, previousStatus: "cancelled", items: [{ productVariantId, quantity }] },
       cancelledDeps,
@@ -328,5 +329,195 @@ test("T5: CANCELLED_AFTER_RESERVE row + OrderCreated → no-op, row state unchan
     stockAfter,
     stockBefore,
     "expected stock to be unchanged after no-op events on terminal row",
+  );
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Race A — OrderCreated wins the INSERT race; OrderCancelled falls back
+// ══════════════════════════════════════════════════════════════════════════
+test("Race A: OrderCreated wins INSERT race → OrderCancelled falls back, finds RESERVED, increments back → CANCELLED_AFTER_RESERVE", async () => {
+  // This test simulates the scenario where:
+  //   1. OrderCreated's atomic INSERT wins → inserts RESERVED row, decrements stock
+  //   2. OrderCancelled arrives concurrently; its INSERT conflicts (RESERVED row exists)
+  //      → falls back to SELECT FOR UPDATE, finds RESERVED (T4), increments stock back
+  //
+  // We model the race sequentially: run Created first (it wins the INSERT),
+  // then run Cancelled (it will conflict → fallback → T4).
+  //
+  // Expected: no error from either handler, final state = CANCELLED_AFTER_RESERVE,
+  // net stock change = 0 (decremented then incremented back).
+
+  const orderId = randomUUID();
+  const createdEventId = randomUUID();
+  const cancelledEventId = randomUUID();
+  const quantity = 3;
+  const initialStock = 10;
+
+  const { productVariantId, inventoryId } = await createStockFixture(initialStock);
+
+  const createdPayload = {
+    orderId,
+    userId: randomUUID(),
+    items: [{ productVariantId, quantity }],
+  };
+  const cancelledPayload = {
+    orderId,
+    previousStatus: "pending",
+    items: [{ productVariantId, quantity }],
+  };
+
+  // Step 1 — OrderCreated wins: INSERT RESERVED succeeds, stock decremented
+  const createdResult = await inventoryPrisma.$transaction((tx) =>
+    handleOrderCreatedTx(tx as PrismaClient, createdEventId, createdPayload, createdDeps),
+  );
+
+  assert.ok(createdResult !== null, "Race A: OrderCreated should produce StockReserved");
+  assert.equal(createdResult!.eventType, "StockReserved");
+
+  const stockAfterCreate = await readStockLevel(productVariantId, inventoryId);
+  assert.equal(
+    stockAfterCreate,
+    initialStock - quantity,
+    "Race A: stock should be decremented after OrderCreated wins",
+  );
+
+  // Step 2 — OrderCancelled arrives: its INSERT conflicts (RESERVED row exists)
+  // → falls back → T4: increments stock back, updates to CANCELLED_AFTER_RESERVE.
+  // Must NOT throw.
+  let cancelledError: unknown = null;
+  try {
+    await inventoryPrisma.$transaction((tx) =>
+      handleOrderCancelledTx(tx as PrismaClient, cancelledEventId, cancelledPayload, cancelledDeps),
+    );
+  } catch (err) {
+    cancelledError = err;
+  }
+
+  assert.equal(
+    cancelledError,
+    null,
+    "Race A: OrderCancelled must not throw when it loses the INSERT race",
+  );
+
+  // Final state must be CANCELLED_AFTER_RESERVE
+  const reservation = await readReservation(orderId);
+  assert.ok(reservation, "Race A: reservation row must exist");
+  assert.equal(
+    reservation!.state,
+    OrderReservationState.CANCELLED_AFTER_RESERVE,
+    "Race A: final state must be CANCELLED_AFTER_RESERVE",
+  );
+
+  // Stock must be fully restored (net change = 0)
+  const finalStock = await readStockLevel(productVariantId, inventoryId);
+  assert.equal(
+    finalStock,
+    initialStock,
+    "Race A: stock must be fully restored after cancel follows create",
+  );
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Race B — OrderCancelled wins the INSERT race; OrderCreated falls back
+// ══════════════════════════════════════════════════════════════════════════
+test("Race B: OrderCancelled wins INSERT race → OrderCreated falls back, finds PRE_CANCELLED, updates without decrement → CANCELLED_AFTER_RESERVE", async () => {
+  // This test simulates the scenario where:
+  //   1. OrderCancelled's atomic INSERT wins → inserts PRE_CANCELLED row
+  //   2. OrderCreated arrives concurrently; its INSERT conflicts (PRE_CANCELLED row exists)
+  //      → falls back to SELECT FOR UPDATE, finds PRE_CANCELLED (T3), updates to
+  //        CANCELLED_AFTER_RESERVE WITHOUT calling decrementStockForOrderItems
+  //
+  // Expected: no error from either handler, final state = CANCELLED_AFTER_RESERVE,
+  // stock is never decremented (cancel side wins, so no reservation ever occurred).
+
+  const orderId = randomUUID();
+  const cancelledEventId = randomUUID();
+  const createdEventId = randomUUID();
+  const quantity = 2;
+  const initialStock = 7;
+
+  const { productVariantId, inventoryId } = await createStockFixture(initialStock);
+
+  const cancelledPayload = {
+    orderId,
+    previousStatus: "pending",
+    items: [{ productVariantId, quantity }],
+  };
+  const createdPayload = {
+    orderId,
+    userId: randomUUID(),
+    items: [{ productVariantId, quantity }],
+  };
+
+  // Step 1 — OrderCancelled wins: INSERT PRE_CANCELLED succeeds, no increment runs
+  let cancelledError: unknown = null;
+  try {
+    await inventoryPrisma.$transaction((tx) =>
+      handleOrderCancelledTx(tx as PrismaClient, cancelledEventId, cancelledPayload, cancelledDeps),
+    );
+  } catch (err) {
+    cancelledError = err;
+  }
+
+  assert.equal(
+    cancelledError,
+    null,
+    "Race B: OrderCancelled (winning side) must not throw",
+  );
+
+  const reservationAfterCancel = await readReservation(orderId);
+  assert.ok(reservationAfterCancel, "Race B: PRE_CANCELLED row should exist after cancel wins");
+  assert.equal(
+    reservationAfterCancel!.state,
+    OrderReservationState.PRE_CANCELLED,
+    "Race B: state should be PRE_CANCELLED after cancel wins INSERT race",
+  );
+
+  // Stock must still be untouched — cancel arrived first, nothing to increment
+  const stockAfterCancel = await readStockLevel(productVariantId, inventoryId);
+  assert.equal(
+    stockAfterCancel,
+    initialStock,
+    "Race B: stock must be unchanged after OrderCancelled wins INSERT race",
+  );
+
+  // Step 2 — OrderCreated arrives: its INSERT conflicts (PRE_CANCELLED row exists)
+  // → falls back → T3: updates to CANCELLED_AFTER_RESERVE, no decrement. Must NOT throw.
+  let createdError: unknown = null;
+  let createdResult: Awaited<ReturnType<typeof handleOrderCreatedTx>> = null;
+  try {
+    createdResult = await inventoryPrisma.$transaction((tx) =>
+      handleOrderCreatedTx(tx as PrismaClient, createdEventId, createdPayload, createdDeps),
+    );
+  } catch (err) {
+    createdError = err;
+  }
+
+  assert.equal(
+    createdError,
+    null,
+    "Race B: OrderCreated must not throw when it loses the INSERT race",
+  );
+  assert.equal(
+    createdResult,
+    null,
+    "Race B: OrderCreated (T3 path) must return null — no StockReserved event",
+  );
+
+  // Final state must be CANCELLED_AFTER_RESERVE
+  const finalReservation = await readReservation(orderId);
+  assert.ok(finalReservation, "Race B: reservation row must exist");
+  assert.equal(
+    finalReservation!.state,
+    OrderReservationState.CANCELLED_AFTER_RESERVE,
+    "Race B: final state must be CANCELLED_AFTER_RESERVE",
+  );
+
+  // Stock must remain untouched throughout — decrement must never have run
+  const finalStock = await readStockLevel(productVariantId, inventoryId);
+  assert.equal(
+    finalStock,
+    initialStock,
+    "Race B: stock must remain untouched when cancel wins the INSERT race",
   );
 });

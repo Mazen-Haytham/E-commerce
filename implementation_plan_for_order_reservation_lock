@@ -1,0 +1,77 @@
+# Step 3b: Fix Insert-Race in order_reservation_state
+
+## Problem
+
+`handleOrderCreatedTx` and `handleOrderCancelledTx` use a "read-then-maybe-insert" pattern:
+1. `SELECT … FOR UPDATE` — but this locks **nothing** when no row exists yet
+2. Branch on what was found (including "no row")
+3. `INSERT` a new row if none existed
+
+If two concurrent handlers (e.g., OrderCreated and OrderCancelled for the same order) both read "no row" simultaneously, both attempt `create()`, and one hits a unique-constraint violation on `order_id`. This is currently treated as a hard failure — triggering `recordStockRejectedEvent` incorrectly.
+
+## Fix: Insert-First, Detect-Conflict Pattern
+
+Replace the read-then-insert pattern with an atomic "insert-first, detect conflict" pattern in both handlers.
+
+---
+
+### Consumer Logic Changes
+
+#### [MODIFY] [orderCreatedConsumer.ts](file:///d:/Jonas-Backend/E-commerce/src/Modules/Inventory/consumers/orderCreatedConsumer.ts)
+
+Replace the `SELECT … FOR UPDATE` + branch logic with:
+
+1. **Attempt atomic INSERT** of `(order_id, 'RESERVED')` with `ON CONFLICT (order_id) DO NOTHING RETURNING order_id`
+2. **INSERT returned a row (won the race)** → T1 happy path: call `decrementStockForOrderItems`, insert outbox event, write `processedEvent`, return `StockReserved`
+3. **INSERT returned no row (conflict)** → fall back to `SELECT … FOR UPDATE`, then branch across:
+   - T3: `PRE_CANCELLED` → update to `CANCELLED_AFTER_RESERVE`, no decrement, return null
+   - T5: terminal states → no-op, return null
+   - Unexpected state → no-op, return null
+
+The dedup check (`processedEvent.findUnique`) remains first, unchanged.
+
+#### [MODIFY] [orderCancelledConsumer.ts](file:///d:/Jonas-Backend/E-commerce/src/Modules/Inventory/consumers/orderCancelledConsumer.ts)
+
+Mirror the same pattern:
+
+1. **Attempt atomic INSERT** of `(order_id, 'PRE_CANCELLED', $items)` with `ON CONFLICT (order_id) DO NOTHING RETURNING order_id`
+2. **INSERT returned a row (won)** → T2 happy path: write `processedEvent`, return (no increment)
+3. **INSERT returned no row (conflict)** → fall back to `SELECT … FOR UPDATE`, then branch across:
+   - T4: `RESERVED` → call `incrementStockForOrderItems`, update to `CANCELLED_AFTER_RESERVE`
+   - T5: terminal states → no-op
+   - Unexpected state → no-op
+
+---
+
+### New Race-Condition Test
+
+#### [MODIFY] [order-reservation-state.test.ts](file:///d:/Jonas-Backend/E-commerce/src/__tests__/order-reservation-state.test.ts)
+
+Add two new test cases covering the concurrent-race scenarios:
+
+- **Race A (OrderCreated wins)**: Both handlers start with no row. OrderCreated's INSERT wins, OrderCancelled falls back to `SELECT … FOR UPDATE`, finds `RESERVED`, and increments stock back → final state `CANCELLED_AFTER_RESERVE`
+- **Race B (OrderCancelled wins)**: OrderCancelled's INSERT wins (inserting `PRE_CANCELLED`), OrderCreated falls back to `SELECT … FOR UPDATE`, finds `PRE_CANCELLED`, updates to `CANCELLED_AFTER_RESERVE` without decrementing → final state `CANCELLED_AFTER_RESERVE`
+
+Both race tests assert: no error/rejection, correct final state, stock only decremented when create-side genuinely wins (and reversed on cancel).
+
+---
+
+### Migration Cleanup
+
+#### [NEW] [20260715200000_add_order_reservation_state/migration.sql](file:///d:/Jonas-Backend/E-commerce/inventory-service/prisma/migrations/20260715200000_add_order_reservation_state/migration.sql)
+
+Create a new migration under `inventory-service/prisma/migrations/` with the same SQL as the orphaned one — creates the `OrderReservationState` enum and `order_reservation_state` table.
+
+#### [DELETE] `./prisma/migrations/20260715063638_add_order_reservation_state/`
+
+Remove the orphaned migration from the monolith's migrations folder after confirming it's now tracked under the inventory service.
+
+## Verification Plan
+
+### Automated Tests
+- Run existing tests: `node --import tsx/esm --test src/__tests__/order-reservation-state.test.ts`
+- New race-condition tests in same file pass
+
+### Manual Verification
+- Confirm both consumers compile with TypeScript (`npx tsc --noEmit`)
+- Confirm migration is present under `inventory-service/prisma/migrations/` and absent from `./prisma/migrations/`

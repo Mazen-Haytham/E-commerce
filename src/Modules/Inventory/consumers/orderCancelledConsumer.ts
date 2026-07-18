@@ -52,7 +52,41 @@ export async function handleOrderCancelledTx(
     return;
   }
 
-  // ── 2. Lock the local reservation row (empty array = no row yet) ───────
+  // ── 2. Atomic insert — wins the race or detects conflict ───────────────
+  //
+  // FOR UPDATE locks nothing when no row exists, creating the same race window
+  // as in the Created consumer. Use the same insert-first pattern:
+  // insert PRE_CANCELLED; if we win, we're T2; if a row already exists,
+  // fall back to SELECT … FOR UPDATE to read the current state.
+  const insertedRows = await tx.$queryRaw<Array<{ order_id: string }>>`
+    INSERT INTO inventory.order_reservation_state (order_id, state, items)
+    VALUES (
+      ${payload.orderId}::uuid,
+      'PRE_CANCELLED'::"inventory"."OrderReservationState",
+      ${JSON.stringify(payload.items)}::jsonb
+    )
+    ON CONFLICT (order_id) DO NOTHING
+    RETURNING order_id
+  `;
+
+  // ── 3. State machine ────────────────────────────────────────────────────
+
+  if (insertedRows.length > 0) {
+    // T2 happy path — cancel arrived first; PRE_CANCELLED inserted atomically.
+    // Do NOT run any increment logic here. Record processedEvent and return.
+    console.log(
+      "[InventoryOrderCancelledConsumer] stock was never reserved, inserting PRE_CANCELLED",
+      { eventId, orderId: payload.orderId },
+    );
+    await tx.processedEvent.create({
+      data: { eventId, consumerName: CONSUMER_NAME },
+    });
+    return;
+  }
+
+  // INSERT returned no row → a row already exists (conflict). Fall back to
+  // SELECT … FOR UPDATE so we can read the current state and branch correctly.
+  // A conflict is NOT an error — it is a normal, expected racing outcome.
   const reservationRows = await tx.$queryRaw<
     Array<{ state: string; items: unknown }>
   >`
@@ -62,8 +96,6 @@ export async function handleOrderCancelledTx(
     FOR UPDATE
   `;
   const reservation = reservationRows[0] ?? null;
-
-  // ── 3. State machine ────────────────────────────────────────────────────
 
   // T5: terminal state — no-op, do not modify row further
   if (
@@ -101,30 +133,10 @@ export async function handleOrderCancelledTx(
     return;
   }
 
-  // T2: no row — cancel arrived before create; store items for audit, do NOT increment
-  if (reservation === null) {
-    console.log(
-      "[InventoryOrderCancelledConsumer] stock was never reserved, inserting PRE_CANCELLED",
-      { eventId, orderId: payload.orderId },
-    );
-
-    await tx.orderReservation.create({
-      data: {
-        orderId: payload.orderId,
-        state: OrderReservationState.PRE_CANCELLED,
-        items: payload.items as object[],
-      },
-    });
-
-    await tx.processedEvent.create({
-      data: { eventId, consumerName: CONSUMER_NAME },
-    });
-    return;
-  }
-
-  // Unexpected state (PENDING_CREATE or anything else) — no-op, log
+  // Unexpected state (PRE_CANCELLED set by another concurrent handler,
+  // PENDING_CREATE, or anything else) — no-op, log
   console.log(
-    `[InventoryOrderCancelledConsumer] order ${payload.orderId} in unexpected reservation state ${reservation.state}, no-op`,
+    `[InventoryOrderCancelledConsumer] order ${payload.orderId} in unexpected reservation state ${reservation?.state}, no-op`,
   );
   await tx.processedEvent.create({
     data: { eventId, consumerName: CONSUMER_NAME },
