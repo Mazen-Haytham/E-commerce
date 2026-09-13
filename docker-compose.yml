@@ -6,9 +6,9 @@ services:
     image: postgres:18
     container_name: postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: ecommerce
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
@@ -16,7 +16,7 @@ services:
     networks:
       - backend_net
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d ecommerce" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,8 +44,8 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     ports:
       - "5672:5672" # AMQP port
       - "15672:15672" # Management UI — http://localhost:15672 (guest/guest)
@@ -70,6 +70,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      inventory-postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       redis:
@@ -86,10 +88,45 @@ services:
     # Run migrations before starting the app
     command: sh -c "npm run prisma:migrate && npm run dev"
 
+  inventory-postgres:
+    image: postgres:18
+    container_name: inventory-postgres
+    environment:
+      POSTGRES_USER: ${INVENTORY_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${INVENTORY_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${INVENTORY_POSTGRES_DB}
+    ports:
+      - "5433:5432"
+    volumes:
+      - inventory_postgres_data:/var/lib/postgresql
+    networks:
+      - backend_net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${INVENTORY_POSTGRES_USER} -d ${INVENTORY_POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  inventory-migrate:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: inventory-migrate
+    depends_on:
+      inventory-postgres:
+        condition: service_healthy
+    environment:
+      INVENTORY_DATABASE_URL: ${INVENTORY_DATABASE_URL}
+    command: npx prisma migrate deploy --config inventory-service/prisma.config.ts
+    networks:
+      - backend_net
+
 volumes:
   postgres_data:
   redis_data:
   rabbitmq_data:
+  inventory_postgres_data:
 
 networks:
   backend_net:

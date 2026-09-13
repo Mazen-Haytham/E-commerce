@@ -1,3 +1,5 @@
+CREATE SCHEMA IF NOT EXISTS inventory;
+
 -- CreateTable
 CREATE TABLE "inventory"."Inventory" (
     "id" TEXT NOT NULL,

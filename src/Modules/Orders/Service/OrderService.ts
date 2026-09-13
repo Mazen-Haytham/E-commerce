@@ -123,8 +123,7 @@ export class OrderService {
       }
     }
 
-    // Verify user exists using UserApi
-    await this.userApi.findUserById(input.userId);
+    
 
     // Verify all product variants exist using ProductApi
     for (const item of input.items) {
