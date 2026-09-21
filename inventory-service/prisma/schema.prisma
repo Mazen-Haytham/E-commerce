@@ -1,6 +1,6 @@
 generator client {
   provider        = "prisma-client-js"
-  output          = "../../src/generated/inventory-prisma"
+  output          = "../src/generated/inventory-prisma"
   previewFeatures = ["partialIndexes"]
 }
 

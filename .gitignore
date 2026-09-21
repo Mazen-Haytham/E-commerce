@@ -3,6 +3,8 @@ node_modules
 .env
 .env.example
 dist
-/src/generated/prisma
-/src/generated/inventory-prisma
+**/dist
+src/generated
+**/src/generated
 graphify-out
+

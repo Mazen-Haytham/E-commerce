@@ -122,6 +122,22 @@ services:
     networks:
       - backend_net
 
+  inventory-app:
+    build:
+      context: ./inventory-service
+      dockerfile: Dockerfile
+    container_name: inventory-app
+    depends_on:
+      inventory-postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      INVENTORY_SERVICE_PORT: ${INVENTORY_SERVICE_PORT:-3001}
+    ports:
+      - "3001:3001"
+    networks:
+      - backend_net
+
 volumes:
   postgres_data:
   redis_data:
