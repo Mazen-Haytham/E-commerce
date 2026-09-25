@@ -1,13 +1,14 @@
-# 🛒 E-Commerce REST API
+# 🛒 E-Commerce REST API - Microservices Architecture
 
-A full-featured RESTful API for an e-commerce platform, supporting product catalog management, inventory tracking, shopping carts, order processing, payments, and discount pricing.
+A full-featured RESTful API for an e-commerce platform built with Node.js, Express, and Prisma. The system has recently evolved from a monolith into a **Microservices Architecture** leveraging the **Saga Pattern**, **RabbitMQ**, and the **Outbox Pattern** to ensure distributed data consistency.
 
-**Base URL:** `http://localhost:3000/api`
+**Base URL:** `http://localhost:3000/api` (Core API) / `http://localhost:3001/api` (Inventory API)
 
 ---
 
 ## 📋 Table of Contents
 
+- [Architecture & Patterns](#-architecture--patterns)
 - [Authentication](#-authentication)
 - [Categories](#-categories)
 - [Product Catalog](#-product-catalog)
@@ -19,6 +20,36 @@ A full-featured RESTful API for an e-commerce platform, supporting product catal
 - [Pricing & Discounts](#-pricing--discounts)
 - [Error Handling](#-error-handling)
 - [Roles & Permissions](#-roles--permissions)
+
+---
+
+## 🏗️ Architecture & Patterns
+
+This project showcases several advanced, enterprise-grade ("senior level") design patterns to handle distributed systems reliably.
+
+### 1. Microservices & Database per Service
+The application is split into two primary services:
+- **Core Service**: Handles Users, Product Catalog, Orders, and Payments.
+- **Inventory Service**: Exclusively manages stock levels and reservations.
+
+Each service has its own dedicated PostgreSQL database (`postgres` and `inventory-postgres`). We strictly avoid cross-database foreign keys or joins, forcing all cross-domain communication to happen via asynchronous events.
+
+### 2. Event-Driven Communication (RabbitMQ)
+Services communicate asynchronously using RabbitMQ. We use durable queues and topic exchanges to route domain events like `OrderCreated`, `StockReserved`, and `StockRejected`.
+
+### 3. The Saga Pattern (Distributed Transactions)
+To maintain data consistency across databases without using distributed locks or 2PC (Two-Phase Commit), we implement a Choreographed Saga for order creation:
+1. **Orders Service** creates an order in a `pending` state and publishes an `OrderCreated` event.
+2. **Inventory Service** consumes `OrderCreated` and attempts to reserve stock locally.
+3. If successful, Inventory publishes `StockReserved`. If stock is insufficient, it publishes `StockRejected`.
+4. **Orders Service** listens to these result events and updates the order status to `confirmed` or `stock_rejected` respectively.
+5. A background sweep job automatically cancels `pending` orders if the Inventory service times out or crashes.
+
+### 4. Transactional Outbox Pattern
+To prevent the "dual-write" problem (e.g., saving to the DB but crashing before publishing to RabbitMQ), services use the **Outbox Pattern**. Events are saved to an `outbox_events` table in the *same local database transaction* as the business entity changes. A background publisher reliably reads from the outbox and dispatches events to RabbitMQ.
+
+### 5. Idempotent Consumers (Exactly-Once Semantics)
+Because RabbitMQ guarantees *at-least-once* delivery, consumers must be idempotent to handle redeliveries safely. Every consumer checks a `processed_events` table within its transaction. If an event was already processed, it is skipped, ensuring side effects (like decrementing stock) only happen once per event.
 
 ---
 
@@ -53,13 +84,6 @@ Authenticates a user and returns an access token. Sets an HttpOnly `refreshToken
 ### POST `/auth/refresh`
 Generates a new access token using the `refreshToken` cookie (valid for 7 days).
 
-**Response `200 OK`:**
-```json
-{
-  "accessToken": "newAccessTokenHere"
-}
-```
-
 ---
 
 ## 📂 Categories
@@ -72,24 +96,6 @@ Generates a new access token using the `refreshToken` cookie (valid for 7 days).
 | `PATCH` | `/categories/:id` | Update a category | ADMIN |
 | `DELETE` | `/categories/:id` | Delete a category | ADMIN |
 
-### POST `/categories` — Create Categories
-
-**Request Body (array):**
-```json
-[
-  { "name": "Electronics" },
-  { "name": "Clothing" }
-]
-```
-
-**Response `201 Created`:**
-```json
-{
-  "status": "Success",
-  "data": { "count": 2 }
-}
-```
-
 ---
 
 ## 📦 Product Catalog
@@ -101,56 +107,11 @@ Generates a new access token using the `refreshToken` cookie (valid for 7 days).
 | `PATCH` | `/catalog/:id` | Update a product and/or its variants | ADMIN, SUPPLIER |
 | `DELETE` | `/catalog/:id` | Soft-delete a product | ADMIN, SUPPLIER |
 
-### POST `/catalog/` — Add Product
-
-Products support multiple variants (e.g. different sizes/colors), each with their own SKU, pricing, images, and inventory associations.
-
-**Request Body:**
-```json
-{
-  "name": "Gaming Laptop",
-  "producer": "TechBrand",
-  "categories": ["category-uuid-1", "category-uuid-2"],
-  "variants": [
-    {
-      "sku": "LAPTOP-001-16GB",
-      "color": "Space Gray",
-      "size": "15.6 inch",
-      "weight": "1.8kg",
-      "price": 1299.99,
-      "images": [
-        {
-          "url": "https://example.com/laptop-gray-1.jpg",
-          "altText": "Gaming laptop space gray",
-          "isPrimary": true
-        }
-      ],
-      "inventories": [
-        { "id": "inventory-uuid", "stockLevel": 50, "restock": 10 }
-      ]
-    }
-  ]
-}
-```
-
-**Response `201 Created`:**
-```json
-{
-  "status": "Success",
-  "data": {
-    "id": "product-uuid",
-    "name": "Gaming Laptop",
-    "producer": "TechBrand",
-    "variants": [
-      { "productId": "product-uuid", "id": "variant-uuid-1" }
-    ]
-  }
-}
-```
+Products support multiple variants (e.g., sizes/colors), each with their own SKU, pricing, images, and decoupled inventory references.
 
 ---
 
-## 🏭 Inventory
+## 🏭 Inventory (Inventory Service)
 
 | Method | Endpoint | Description | Roles |
 |--------|----------|-------------|-------|
@@ -159,18 +120,8 @@ Products support multiple variants (e.g. different sizes/colors), each with thei
 | `POST` | `/inventory/` | Create an inventory location | ADMIN |
 | `PATCH` | `/inventory/:id` | Update an inventory location | ADMIN |
 | `PATCH` | `/inventory/stock/:id` | Update stock level for a product variant | ADMIN, SUPPLIER |
-| `DELETE` | `/inventory/:id` | Deactivate an inventory location | ADMIN |
 
-### PATCH `/inventory/stock/:id` — Update Stock Level
-
-**Request Body:**
-```json
-{
-  "productVariantId": "variant-uuid",
-  "inventoryId": "inventory-uuid",
-  "stockLevel": 75
-}
-```
+*Note: Stock decrements during order creation are handled asynchronously via the Saga pattern, not through direct synchronous API calls.*
 
 ---
 
@@ -184,21 +135,6 @@ Products support multiple variants (e.g. different sizes/colors), each with thei
 | `GET` | `/users/email/:email` | Get user by email | ADMIN |
 | `PATCH` | `/users/:id` | Update user info | ADMIN, CUSTOMER |
 | `DELETE` | `/users/:id` | Deactivate a user | ADMIN, CUSTOMER |
-
-### POST `/users/` — Register User
-
-```json
-{
-  "email": "newuser@example.com",
-  "firstName": "John",
-  "lastName": "Doe",
-  "password": "SecurePassword123!",
-  "phone": "+1234567890",
-  "profilePic": "https://example.com/profile.jpg"
-}
-```
-
-**Response `201 Created`:** Returns the created user with role `["CUSTOMER"]`.
 
 ---
 
@@ -214,27 +150,6 @@ Base path: `/users/:id/cart`
 | `DELETE` | `/users/:id/cart/items/:variantId` | Remove item from cart | ADMIN, CUSTOMER |
 | `DELETE` | `/users/:id/cart` | Clear entire cart | ADMIN, CUSTOMER |
 
-### GET `/users/:id/cart` — View Cart
-
-**Response `200 OK`:**
-```json
-{
-  "status": "Success",
-  "data": {
-    "userId": "user-uuid",
-    "items": [
-      {
-        "productVariantId": "variant-uuid-1",
-        "quantity": 2,
-        "price": 49.99,
-        "subtotal": 99.98
-      }
-    ],
-    "totalPrice": 129.97
-  }
-}
-```
-
 ---
 
 ## 📋 Orders
@@ -242,26 +157,23 @@ Base path: `/users/:id/cart`
 | Method | Endpoint | Description | Roles |
 |--------|----------|-------------|-------|
 | `GET` | `/orders/` | Get all orders | ADMIN |
-| `POST` | `/orders/` | Create a new order | Authenticated |
+| `POST` | `/orders/` | Create a new order (Triggers Saga) | Authenticated |
 | `GET` | `/orders/:orderId` | Get order by ID | Authenticated |
 | `GET` | `/orders/user/:userId` | Get orders by user | Authenticated |
 | `PATCH` | `/orders/:orderId/status` | Update order status | Authenticated |
 | `DELETE` | `/orders/:orderId` | Soft-delete an order | Authenticated |
 
-### Order Statuses
-`pending` → `confirmed` → `packed` → `shipped` → `delivered` → `cancelled`
+### Order Saga Statuses
+`pending` → `confirmed` (or `stock_rejected`) → `packed` → `shipped` → `delivered` → `cancelled`
 
-### POST `/orders/` — Create Order
-
-**Request Body:**
+**Request Body (Create Order):**
 ```json
 {
   "userId": "user-uuid",
   "items": [
-    { "productVariantId": "variant-uuid-1", "quantity": 2, "unitPrice": 49.99 },
-    { "productVariantId": "variant-uuid-2", "quantity": 1, "unitPrice": 29.99 }
+    { "productVariantId": "variant-uuid-1", "quantity": 2, "unitPrice": 49.99 }
   ],
-  "totalPrice": 129.97
+  "totalPrice": 99.98
 }
 ```
 
@@ -276,55 +188,17 @@ Base path: `/orders/:orderId/payments`
 | `POST` | `/orders/:orderId/payments` | Create a payment record | Authenticated |
 | `GET` | `/orders/:orderId/payments` | Get payments for an order | Authenticated |
 
-### POST `/orders/:orderId/payments` — Create Payment
-
-**Request Body:**
-```json
-{
-  "orderId": "order-uuid",
-  "paymentMethodId": "method-uuid",
-  "amount": 129.97,
-  "transactionId": "txn_123456789"
-}
-```
-
-**Response `201 Created`:** Returns payment record with `status: "pending"`.
-
 ---
 
 ## 🏷️ Pricing & Discounts
 
 | Method | Endpoint | Description | Roles |
 |--------|----------|-------------|-------|
-| `GET` | `/orders/pricing/product/:productId` | Get pricing for all variants of a product | Public |
+| `GET` | `/orders/pricing/product/:productId` | Get pricing for all variants | Public |
 | `GET` | `/orders/pricing/variant/:variantId` | Get pricing for a specific variant | Public |
-| `GET` | `/orders/pricing/category/:categoryId` | Get pricing for all products in a category | Public |
+| `GET` | `/orders/pricing/category/:categoryId` | Get pricing for all products in category | Public |
 | `POST` | `/orders/discount/variant` | Create a discount for a product variant | ADMIN |
 | `POST` | `/orders/discount/category` | Create a discount for an entire category | ADMIN |
-
-### POST `/orders/discount/variant` — Create Variant Discount
-
-**Request Body:**
-```json
-{
-  "productVariantId": "variant-uuid",
-  "discountType": "percentage",
-  "discountValue": 15
-}
-```
-
-> **Discount types:** `percentage` (0–100) or `fixed_amount` (currency value)
-
-### POST `/orders/discount/category` — Create Category Discount
-
-**Request Body:**
-```json
-{
-  "categoryId": "category-uuid",
-  "discountType": "percentage",
-  "discountValue": 20
-}
-```
 
 ---
 
@@ -342,16 +216,6 @@ All error responses follow this format:
 }
 ```
 
-| Status Code | Meaning |
-|-------------|---------|
-| `200` | OK — Request succeeded |
-| `201` | Created — Resource successfully created |
-| `400` | Bad Request — Invalid request data |
-| `401` | Unauthorized — Missing or invalid token |
-| `403` | Forbidden — Insufficient permissions |
-| `404` | Not Found — Resource not found |
-| `500` | Internal Server Error |
-
 ---
 
 ## 🔑 Roles & Permissions
@@ -361,5 +225,3 @@ All error responses follow this format:
 | **ADMIN** | Full access to all endpoints |
 | **SUPPLIER** | Can manage products and update inventory stock |
 | **CUSTOMER / USER** | Can browse products, manage own cart, and place orders |
-
-> Access tokens have a limited lifetime. Use `POST /auth/refresh` to renew them. Refresh tokens are valid for **7 days**.
