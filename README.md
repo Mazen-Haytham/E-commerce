@@ -34,19 +34,88 @@ The application is split into two primary services:
 
 Each service has its own dedicated PostgreSQL database (`postgres` and `inventory-postgres`). We strictly avoid cross-database foreign keys or joins, forcing all cross-domain communication to happen via asynchronous events.
 
+```mermaid
+graph TD
+    Client([Client / Frontend])
+    
+    subgraph Core Service
+        CoreApp[Core API Application]
+        CoreDB[(Core DB: Orders, Users)]
+    end
+    
+    subgraph Inventory Service
+        InvApp[Inventory API]
+        InvDB[(Inventory DB: Stock)]
+    end
+    
+    Broker{{RabbitMQ}}
+
+    Client -->|REST API| CoreApp
+    Client -->|REST API| InvApp
+    
+    CoreApp -->|Read/Write| CoreDB
+    InvApp -->|Read/Write| InvDB
+    
+    CoreApp -.->|Publish / Consume| Broker
+    InvApp -.->|Publish / Consume| Broker
+```
+
 ### 2. Event-Driven Communication (RabbitMQ)
 Services communicate asynchronously using RabbitMQ. We use durable queues and topic exchanges to route domain events like `OrderCreated`, `StockReserved`, and `StockRejected`.
 
 ### 3. The Saga Pattern (Distributed Transactions)
 To maintain data consistency across databases without using distributed locks or 2PC (Two-Phase Commit), we implement a Choreographed Saga for order creation:
-1. **Orders Service** creates an order in a `pending` state and publishes an `OrderCreated` event.
-2. **Inventory Service** consumes `OrderCreated` and attempts to reserve stock locally.
-3. If successful, Inventory publishes `StockReserved`. If stock is insufficient, it publishes `StockRejected`.
-4. **Orders Service** listens to these result events and updates the order status to `confirmed` or `stock_rejected` respectively.
-5. A background sweep job automatically cancels `pending` orders if the Inventory service times out or crashes.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Orders as Orders Service
+    participant RMQ as RabbitMQ
+    participant Inventory as Inventory Service
+
+    User->>Orders: POST /orders
+    Orders->>Orders: Create Order (Status: Pending)
+    Orders-)+RMQ: Publish 'OrderCreated'
+    Orders-->>User: 201 Created (Pending)
+    
+    RMQ-)-Inventory: Deliver 'OrderCreated'
+    Inventory->>Inventory: Attempt Stock Reservation
+    
+    alt Stock Available
+        Inventory-)+RMQ: Publish 'StockReserved'
+        RMQ-)-Orders: Deliver 'StockReserved'
+        Orders->>Orders: Update Order (Status: Confirmed)
+    else Stock Insufficient
+        Inventory-)+RMQ: Publish 'StockRejected'
+        RMQ-)-Orders: Deliver 'StockRejected'
+        Orders->>Orders: Update Order (Status: Rejected)
+    end
+```
 
 ### 4. Transactional Outbox Pattern
 To prevent the "dual-write" problem (e.g., saving to the DB but crashing before publishing to RabbitMQ), services use the **Outbox Pattern**. Events are saved to an `outbox_events` table in the *same local database transaction* as the business entity changes. A background publisher reliably reads from the outbox and dispatches events to RabbitMQ.
+
+```mermaid
+graph LR
+    subgraph Microservice Context
+        Logic[Business Logic]
+        
+        subgraph Local Transaction
+            DB_Main[(Business Table)]
+            DB_Outbox[(Outbox Table)]
+        end
+        
+        Relay[Background Sweep / Publisher]
+    end
+    
+    Broker{{RabbitMQ}}
+
+    Logic -->|1. Update Entity| DB_Main
+    Logic -->|2. Insert Event| DB_Outbox
+    
+    DB_Outbox -.->|3. Unsent Events| Relay
+    Relay -->|4. Publish| Broker
+```
 
 ### 5. Idempotent Consumers (Exactly-Once Semantics)
 Because RabbitMQ guarantees *at-least-once* delivery, consumers must be idempotent to handle redeliveries safely. Every consumer checks a `processed_events` table within its transaction. If an event was already processed, it is skipped, ensuring side effects (like decrementing stock) only happen once per event.
